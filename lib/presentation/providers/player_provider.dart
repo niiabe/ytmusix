@@ -462,12 +462,32 @@ class PlayerProvider extends ChangeNotifier {
     _audioHandler = handler;
     _playbackStateSub?.cancel();
     _playbackStateSub = handler.playbackState.listen((state) {
+      bool changed = false;
       if (_isPlaying != state.playing) {
         _isPlaying = state.playing;
+        changed = true;
+      }
+      final newMode = switch (state.repeatMode) {
+        AudioServiceRepeatMode.none => repeat.PlaybackRepeatMode.none,
+        AudioServiceRepeatMode.one => repeat.PlaybackRepeatMode.one,
+        AudioServiceRepeatMode.all => repeat.PlaybackRepeatMode.all,
+        _ => repeat.PlaybackRepeatMode.none,
+      };
+      if (_repeatMode != newMode) {
+        _repeatMode = newMode;
+        changed = true;
+      }
+      if (changed) {
         notifyListeners();
       }
     });
     _syncQueueToHandler();
+    final mode = switch (_repeatMode) {
+      repeat.PlaybackRepeatMode.none => AudioServiceRepeatMode.none,
+      repeat.PlaybackRepeatMode.one => AudioServiceRepeatMode.one,
+      repeat.PlaybackRepeatMode.all => AudioServiceRepeatMode.all,
+    };
+    _audioHandler!.setRepeatMode(mode);
   }
 
   MediaItem _trackToMediaItem(Track track) {

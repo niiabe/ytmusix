@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2
+
+- Fixed bottom layout overflow on the Now Playing FAB widget.
+- Corrected repeat and shuffle control integration on the Now Playing screen.
+- Resolved seekbar duration filling issues.
+
 ## 1.4.1
 
 - Fixed background audio playback and track auto-play progression on Android.

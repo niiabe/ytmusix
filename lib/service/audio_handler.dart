@@ -55,6 +55,8 @@ class MusicAudioHandler extends BaseAudioHandler {
   bool _crossfadeEnabled = false;
   bool _isCrossfading = false;
   Timer? _crossfadeTimer;
+  AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
+  bool _crossfadeLoopsToStart = false;
 
   void setRepository(AudioRepository repository) {
     _audioRepository = repository;
@@ -189,8 +191,14 @@ class MusicAudioHandler extends BaseAudioHandler {
 
   void _onProcessingState(ProcessingState state) {
     if (state == ProcessingState.completed) {
-      if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
+      if (_repeatMode == AudioServiceRepeatMode.one) {
+        if (_currentIndex != null) {
+          _playAtIndex(_currentIndex!);
+        }
+      } else if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
         _playNext();
+      } else if (_repeatMode == AudioServiceRepeatMode.all && _queue.isNotEmpty) {
+        _playAtIndex(0);
       } else {
         stop();
       }
@@ -218,13 +226,28 @@ class MusicAudioHandler extends BaseAudioHandler {
 
   Duration get duration => _activePlayer.duration ?? Duration.zero;
 
-  Stream<ProcessingState> get processingStateStream => _processingStateController.stream;
+  Stream<ProcessingState> get processingStateStream async* {
+    yield _activePlayer.processingState;
+    yield* _processingStateController.stream;
+  }
 
-  Stream<Duration> get positionStream => _positionController.stream;
+  Stream<Duration> get positionStream async* {
+    yield _activePlayer.position;
+    yield* _positionController.stream;
+  }
 
-  Stream<Duration> get bufferedPositionStream => _bufferedPositionController.stream;
+  Stream<Duration> get bufferedPositionStream async* {
+    yield _activePlayer.bufferedPosition;
+    yield* _bufferedPositionController.stream;
+  }
 
-  Stream<Duration> get durationStream => _durationController.stream;
+  Stream<Duration> get durationStream async* {
+    final active = _activePlayer;
+    if (active.duration != null) {
+      yield active.duration!;
+    }
+    yield* _durationController.stream;
+  }
 
   int? get currentIndex => _currentIndex;
   int get queueLength => _queue.length;
@@ -478,16 +501,21 @@ class MusicAudioHandler extends BaseAudioHandler {
     if (dur != null && dur.inSeconds > 7) {
       final remaining = dur - pos;
       if (_crossfadeEnabled && remaining <= const Duration(seconds: 7) && !_isCrossfading) {
-        if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
-          _startCrossfade();
+        if (_currentIndex != null) {
+          if (_currentIndex! + 1 < _queue.length) {
+            _startCrossfade(loopToStart: false);
+          } else if (_repeatMode == AudioServiceRepeatMode.all && _queue.isNotEmpty) {
+            _startCrossfade(loopToStart: true);
+          }
         }
       }
     }
   }
 
-  Future<void> _startCrossfade() async {
+  Future<void> _startCrossfade({bool loopToStart = false}) async {
     _isCrossfading = true;
-    final nextIndex = _currentIndex! + 1;
+    _crossfadeLoopsToStart = loopToStart;
+    final nextIndex = loopToStart ? 0 : _currentIndex! + 1;
     final nextItem = _queue[nextIndex];
 
     final nextUrl = await _resolveUrlForItem(nextItem);
@@ -551,7 +579,7 @@ class MusicAudioHandler extends BaseAudioHandler {
     final inactive = _inactivePlayer;
 
     _isPlayer1Active = !_isPlayer1Active;
-    _currentIndex = _currentIndex! + 1;
+    _currentIndex = _crossfadeLoopsToStart ? 0 : _currentIndex! + 1;
 
     await active.stop();
     active.setVolume(1.0);
@@ -573,6 +601,13 @@ class MusicAudioHandler extends BaseAudioHandler {
     _activePlayer.setVolume(1.0);
     _inactivePlayer.setVolume(1.0);
     _isCrossfading = false;
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    _repeatMode = repeatMode;
+    final current = playbackState.valueOrNull ?? _defaultPlaybackState;
+    playbackState.add(current.copyWith(repeatMode: repeatMode));
   }
 
   @override
