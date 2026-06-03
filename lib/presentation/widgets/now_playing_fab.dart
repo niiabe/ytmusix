@@ -32,7 +32,7 @@ class _NowPlayingFabState extends State<NowPlayingFab>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
     _scaleAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
