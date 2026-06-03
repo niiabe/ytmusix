@@ -251,7 +251,7 @@ class MusicAudioHandler extends BaseAudioHandler {
         );
         source = AudioSource.uri(
           Uri.parse(resolvedUrl),
-          headers: headers,
+          headers: Platform.isIOS ? headers : null,
           tag: item,
         );
       } finally {
@@ -372,7 +372,7 @@ class MusicAudioHandler extends BaseAudioHandler {
         );
         source = AudioSource.uri(
           Uri.parse(resolvedUrl),
-          headers: headers,
+          headers: Platform.isIOS ? headers : null,
           tag: item,
         );
       } finally {
@@ -508,7 +508,7 @@ class MusicAudioHandler extends BaseAudioHandler {
         );
         source = AudioSource.uri(
           Uri.parse(resolvedUrl),
-          headers: headers,
+          headers: Platform.isIOS ? headers : null,
           tag: nextItem,
         );
       } finally {
