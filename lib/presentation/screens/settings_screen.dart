@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart' as file_picker;
 import '../../core/constants/audio_quality.dart';
 import '../providers/settings_provider.dart';
 import '../providers/playlist_provider.dart';
@@ -279,14 +279,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _importPlaylists() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
+      final file = await file_picker.FilePicker.pickFile(
+        type: file_picker.FileType.custom,
         allowedExtensions: ['json', 'md', 'xml', 'txt'],
       );
-      if (result == null || result.files.single.path == null) return;
+      if (file == null || file.path == null) return;
       if (!mounted) return;
       final provider = context.read<PlaylistProvider>();
-      final count = await provider.importPlaylists(result.files.single.path!);
+      final count = await provider.importPlaylists(file.path!);
       if (mounted) {
         ScaffoldMessenger.of(
           context,

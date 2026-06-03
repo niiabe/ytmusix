@@ -1,8 +1,12 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../../core/constants/repeat_mode.dart' as repeat;
 import '../../core/utils/format_duration.dart';
 import '../../domain/entities/video.dart';
@@ -13,10 +17,33 @@ import '../providers/playlist_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/queue_sheet.dart';
 
-class PlayerScreen extends StatelessWidget {
+enum _PlaybackMode { audio, video }
+
+class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
 
+  @override
+  State<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class _PlayerScreenState extends State<PlayerScreen> {
+  _PlaybackMode _playbackMode = _PlaybackMode.audio;
+  bool _audioPausedForVideo = false;
+
   static final _lyricsService = LyricsService();
+
+  @override
+  void dispose() {
+    if (_audioPausedForVideo) {
+      try {
+        final player = context.read<PlayerProvider>();
+        if (!player.isPlaying) {
+          player.togglePlayPause();
+        }
+      } catch (_) {}
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +75,27 @@ class PlayerScreen extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
                       child: Column(
                         children: [
-                          _buildPlayerHeader(context, player),
-                          const Spacer(),
-                          _Artwork(imageUrl: track.thumbnailUrl),
-                          const SizedBox(height: 32),
+                          _buildPlayerHeader(context, player, track),
+                          _playbackMode == _PlaybackMode.audio
+                              ? const Spacer()
+                              : const SizedBox(height: 54),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: _playbackMode == _PlaybackMode.audio
+                                ? _Artwork(
+                                    key: const ValueKey('audio-artwork'),
+                                    imageUrl: track.thumbnailUrl,
+                                  )
+                                : _InlineVideoPlayer(
+                                    key: ValueKey('video-${track.id}'),
+                                    track: track,
+                                  ),
+                          ),
+                          SizedBox(
+                            height: _playbackMode == _PlaybackMode.audio
+                                ? 32
+                                : 30,
+                          ),
                           Row(
                             children: [
                               Expanded(
@@ -87,9 +131,7 @@ class PlayerScreen extends StatelessWidget {
                                   isFav
                                       ? Icons.favorite_rounded
                                       : Icons.favorite_border_rounded,
-                                  color: isFav
-                                      ? const Color(0xFFFF7FA4)
-                                      : Colors.white,
+                                  color: Colors.white,
                                 ),
                                 tooltip: isFav
                                     ? 'Remove from favorites'
@@ -99,71 +141,76 @@ class PlayerScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 28),
-                          _SeekWaveform(
-                            position: player.position,
-                            duration: player.duration,
-                            bufferedPosition: player.bufferedPosition,
-                            onSeek: player.seekTo,
-                          ),
-                          const SizedBox(height: 28),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _ControlButton(
-                                icon: Icons.shuffle_rounded,
-                                active: player.shuffleMode,
-                                onPressed: player.toggleShuffle,
-                              ),
-                              _ControlButton(
-                                icon: Icons.skip_previous_rounded,
-                                onPressed: player.previous,
-                              ),
-                              player.isLoading
-                                  ? const SizedBox(
-                                      width: 62,
-                                      height: 62,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : SizedBox(
-                                      width: 64,
-                                      height: 64,
-                                      child: IconButton(
-                                        style: IconButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          foregroundColor: Colors.black,
-                                          shape: const CircleBorder(),
+                          if (_playbackMode == _PlaybackMode.audio) ...[
+                            const SizedBox(height: 38),
+                            _SeekWaveform(
+                              position: player.position,
+                              duration: player.duration,
+                              bufferedPosition: player.bufferedPosition,
+                              onSeek: player.seekTo,
+                            ),
+                            const SizedBox(height: 34),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _ControlButton(
+                                  icon: Icons.shuffle_rounded,
+                                  active: player.shuffleMode,
+                                  onPressed: player.toggleShuffle,
+                                ),
+                                _ControlButton(
+                                  icon: Icons.skip_previous_rounded,
+                                  onPressed: player.previous,
+                                ),
+                                player.isLoading
+                                    ? const SizedBox(
+                                        width: 62,
+                                        height: 62,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
                                         ),
-                                        icon: Icon(
-                                          player.isPlaying
-                                              ? Icons.pause_rounded
-                                              : Icons.play_arrow_rounded,
-                                          size: 34,
+                                      )
+                                    : SizedBox(
+                                        width: 64,
+                                        height: 64,
+                                        child: IconButton(
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor: Colors.black,
+                                            shape: const CircleBorder(),
+                                          ),
+                                          icon: Icon(
+                                            player.isPlaying
+                                                ? Icons.pause_rounded
+                                                : Icons.play_arrow_rounded,
+                                            size: 34,
+                                          ),
+                                          onPressed: player.togglePlayPause,
                                         ),
-                                        onPressed: player.togglePlayPause,
                                       ),
-                                    ),
-                              _ControlButton(
-                                icon: Icons.skip_next_rounded,
-                                onPressed:
-                                    player.currentIndex + 1 <
-                                        player.queue.length
-                                    ? () => player.next()
-                                    : null,
-                              ),
-                              _ControlButton(
-                                icon: _repeatIconData(player.repeatMode),
-                                active:
-                                    player.repeatMode !=
-                                    repeat.PlaybackRepeatMode.none,
-                                onPressed: player.cycleRepeatMode,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 28),
-                          _buildLyricsButton(context, track),
+                                _ControlButton(
+                                  icon: Icons.skip_next_rounded,
+                                  onPressed:
+                                      player.currentIndex + 1 <
+                                          player.queue.length
+                                      ? () => player.next()
+                                      : null,
+                                ),
+                                _ControlButton(
+                                  icon: _repeatIconData(player.repeatMode),
+                                  active:
+                                      player.repeatMode !=
+                                      repeat.PlaybackRepeatMode.none,
+                                  onPressed: player.cycleRepeatMode,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                          ] else
+                            const SizedBox(height: 26),
+                          _buildQuickActions(context, player, track),
+                          if (_playbackMode == _PlaybackMode.video)
+                            const SizedBox(height: 36),
                           if (player.error != null) ...[
                             const SizedBox(height: 18),
                             Text(
@@ -187,13 +234,11 @@ class PlayerScreen extends StatelessWidget {
     );
   }
 
-  static const _timeStyle = TextStyle(
-    color: Colors.white70,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  Widget _buildPlayerHeader(BuildContext context, PlayerProvider player) {
+  Widget _buildPlayerHeader(
+    BuildContext context,
+    PlayerProvider player,
+    Track track,
+  ) {
     return Row(
       children: [
         _HeaderButton(
@@ -201,11 +246,13 @@ class PlayerScreen extends StatelessWidget {
           tooltip: 'Back',
           onPressed: () => Navigator.pop(context),
         ),
-        const Expanded(
-          child: Text(
-            'Now Playing',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        Expanded(
+          child: Center(
+            child: _PlaybackModeTabs(
+              mode: _playbackMode,
+              onAudioTap: () => _selectAudioMode(player),
+              onVideoTap: () => _selectVideoMode(player),
+            ),
           ),
         ),
         _HeaderButton(
@@ -217,20 +264,51 @@ class PlayerScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLyricsButton(BuildContext context, Track track) {
-    return TextButton.icon(
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.white,
-        backgroundColor: Colors.white.withAlpha(24),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      ),
-      onPressed: () => _showLyricsSheet(context, track),
-      icon: const Icon(Icons.lyrics_rounded, size: 16),
-      label: const Text(
-        'Lyrics',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-      ),
+  Future<void> _selectVideoMode(PlayerProvider player) async {
+    if (_playbackMode == _PlaybackMode.video) return;
+    if (player.isPlaying) {
+      await player.togglePlayPause();
+      _audioPausedForVideo = true;
+    }
+    if (!mounted) return;
+    setState(() => _playbackMode = _PlaybackMode.video);
+  }
+
+  Future<void> _selectAudioMode(PlayerProvider player) async {
+    if (_playbackMode == _PlaybackMode.audio) return;
+    setState(() => _playbackMode = _PlaybackMode.audio);
+    if (_audioPausedForVideo && !player.isPlaying) {
+      await player.togglePlayPause();
+    }
+    _audioPausedForVideo = false;
+  }
+
+  Widget _buildQuickActions(
+    BuildContext context,
+    PlayerProvider player,
+    Track track,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _QuickActionButton(
+          icon: Icons.queue_music_rounded,
+          label: 'Queue',
+          onPressed: () => _showQueueSheet(context),
+        ),
+        const SizedBox(width: 8),
+        _QuickActionButton(
+          icon: Icons.playlist_add_rounded,
+          label: 'Save',
+          onPressed: () => _showSaveSheet(context, player, track),
+        ),
+        const SizedBox(width: 8),
+        _QuickActionButton(
+          icon: Icons.lyrics_rounded,
+          label: 'Lyrics',
+          onPressed: () => _showLyricsSheet(context, track),
+        ),
+      ],
     );
   }
 
@@ -252,6 +330,16 @@ class PlayerScreen extends StatelessWidget {
           _showQueueSheet(context);
         },
       ),
+      if (track != null)
+        _MoreAction(
+          icon: Icons.playlist_add_rounded,
+          title: 'Save to playlist',
+          subtitle: 'Save this track or current queue',
+          onTap: () {
+            Navigator.pop(context);
+            _showSaveSheet(context, player, track);
+          },
+        ),
       if (track != null)
         _MoreAction(
           icon: isDownloaded
@@ -423,6 +511,115 @@ class PlayerScreen extends StatelessWidget {
     );
   }
 
+  void _showSaveSheet(
+    BuildContext context,
+    PlayerProvider player,
+    Track track,
+  ) {
+    final playlistProvider = context.read<PlaylistProvider>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF171717),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withAlpha(14)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Save',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const _SaveActionIcon(icon: Icons.music_note_rounded),
+                title: const Text(
+                  'Save current track',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: const Text('Add it to your cached library'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await playlistProvider.saveSingleTrack(track);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('"${track.title}" saved')),
+                  );
+                },
+              ),
+              if (player.queue.isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const _SaveActionIcon(
+                    icon: Icons.playlist_add_check_rounded,
+                  ),
+                  title: const Text(
+                    'Create playlist from queue',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text('${player.queue.length} tracks, exportable'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showCreatePlaylistDialog(context, player.queue);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreatePlaylistDialog(BuildContext context, List<Track> tracks) {
+    final controller = TextEditingController(text: 'Now Playing');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create playlist'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Playlist name',
+            prefixIcon: Icon(Icons.playlist_add_rounded),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final title = controller.text.trim().isEmpty
+                  ? 'Now Playing'
+                  : controller.text.trim();
+              Navigator.pop(ctx);
+              await context.read<PlaylistProvider>().savePlaylistFromTracks(
+                title: title,
+                tracks: tracks,
+              );
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('"$title" saved to playlists')),
+              );
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showClearQueueDialog(BuildContext context, PlayerProvider player) {
     showDialog(
       context: context,
@@ -555,6 +752,388 @@ class PlayerScreen extends StatelessWidget {
       case repeat.PlaybackRepeatMode.one:
         return Icons.repeat_one_rounded;
     }
+  }
+}
+
+class _PlaybackModeTabs extends StatelessWidget {
+  final _PlaybackMode mode;
+  final VoidCallback onAudioTap;
+  final VoidCallback onVideoTap;
+
+  const _PlaybackModeTabs({
+    required this.mode,
+    required this.onAudioTap,
+    required this.onVideoTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(65),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: Colors.white.withAlpha(18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ModeTab(
+            icon: Icons.graphic_eq_rounded,
+            tooltip: 'Audio',
+            selected: mode == _PlaybackMode.audio,
+            onTap: onAudioTap,
+          ),
+          const SizedBox(width: 3),
+          _ModeTab(
+            icon: Icons.smart_display_rounded,
+            tooltip: 'Video',
+            selected: mode == _PlaybackMode.video,
+            onTap: onVideoTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeTab({
+    required this.icon,
+    required this.tooltip,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: selected ? null : onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 34,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: selected ? Colors.black : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineVideoPlayer extends StatefulWidget {
+  final Track track;
+
+  const _InlineVideoPlayer({super.key, required this.track});
+
+  @override
+  State<_InlineVideoPlayer> createState() => _InlineVideoPlayerState();
+}
+
+class _InlineVideoPlayerState extends State<_InlineVideoPlayer> {
+  late final WebViewController _controller;
+  int _loadProgress = 0;
+  String? _playerError;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = _createYoutubeController(
+      videoId: widget.track.id,
+      onProgress: (progress) {
+        if (!mounted) return;
+        setState(() => _loadProgress = progress);
+      },
+      onError: (message) {
+        if (!mounted) return;
+        setState(() => _playerError = message);
+      },
+    );
+  }
+
+  void _openFullscreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _FullscreenYoutubePlayer(track: widget.track),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              WebViewWidget(controller: _controller),
+              if (_loadProgress < 80 && _playerError == null)
+                _VideoLoadingOverlay(imageUrl: widget.track.thumbnailUrl),
+              if (_playerError != null) _VideoError(message: _playerError),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _InlineFullscreenButton(onPressed: _openFullscreen),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FullscreenYoutubePlayer extends StatefulWidget {
+  final Track track;
+
+  const _FullscreenYoutubePlayer({required this.track});
+
+  @override
+  State<_FullscreenYoutubePlayer> createState() =>
+      _FullscreenYoutubePlayerState();
+}
+
+class _FullscreenYoutubePlayerState extends State<_FullscreenYoutubePlayer> {
+  late final WebViewController _controller;
+  int _loadProgress = 0;
+  String? _playerError;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _controller = _createYoutubeController(
+      videoId: widget.track.id,
+      onProgress: (progress) {
+        if (!mounted) return;
+        setState(() => _loadProgress = progress);
+      },
+      onError: (message) {
+        if (!mounted) return;
+        setState(() => _playerError = message);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_loadProgress < 80 && _playerError == null)
+            _VideoLoadingOverlay(imageUrl: widget.track.thumbnailUrl),
+          if (_playerError != null) _VideoError(message: _playerError),
+          Positioned(
+            top: 12,
+            left: 12,
+            child: SafeArea(
+              child: IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.pop(context),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withAlpha(150),
+                  foregroundColor: Colors.white,
+                  fixedSize: const Size(42, 42),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+WebViewController _createYoutubeController({
+  required String videoId,
+  required ValueChanged<int> onProgress,
+  required ValueChanged<String> onError,
+}) {
+  late final PlatformWebViewControllerCreationParams params;
+  if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+    params = WebKitWebViewControllerCreationParams(
+      allowsInlineMediaPlayback: true,
+      mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+    );
+  } else {
+    params = const PlatformWebViewControllerCreationParams();
+  }
+
+  final controller = WebViewController.fromPlatformCreationParams(params)
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..setBackgroundColor(Colors.black)
+    ..setNavigationDelegate(
+      NavigationDelegate(
+        onProgress: onProgress,
+        onPageStarted: (_) => onProgress(0),
+        onPageFinished: (_) => onProgress(100),
+        onWebResourceError: (error) {
+          if (error.isForMainFrame == false) return;
+          onError(error.description);
+        },
+      ),
+    )
+    ..loadRequest(_youtubeWatchUri(videoId));
+
+  if (controller.platform is AndroidWebViewController) {
+    (controller.platform as AndroidWebViewController)
+        .setMediaPlaybackRequiresUserGesture(false);
+  }
+
+  return controller;
+}
+
+Uri _youtubeWatchUri(String videoId) => Uri.https('m.youtube.com', '/watch', {
+  'v': videoId,
+  'app': 'm',
+  'persist_app': '1',
+});
+
+class _InlineFullscreenButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _InlineFullscreenButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Fullscreen',
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.black.withAlpha(150),
+        foregroundColor: Colors.white,
+        fixedSize: const Size(38, 38),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: const Icon(Icons.fullscreen_rounded, size: 22),
+    );
+  }
+}
+
+class _VideoLoadingOverlay extends StatelessWidget {
+  final String? imageUrl;
+
+  const _VideoLoadingOverlay({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        image: imageUrl == null || imageUrl!.isEmpty
+            ? null
+            : DecorationImage(
+                image: CachedNetworkImageProvider(imageUrl!),
+                fit: BoxFit.cover,
+                opacity: 0.32,
+              ),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: ColoredBox(
+          color: Colors.black.withAlpha(135),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Loading YouTube player',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoError extends StatelessWidget {
+  final String? message;
+
+  const _VideoError({this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.videocam_off_rounded,
+              color: Colors.white54,
+              size: 42,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Video is unavailable',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            if (message != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -781,7 +1360,7 @@ class _SeekWaveform extends StatelessWidget {
       children: [
         SizedBox(
           width: 42,
-          child: Text(formatDuration(position), style: PlayerScreen._timeStyle),
+          child: Text(formatDuration(position), style: _timeStyle),
         ),
         Expanded(
           child: LayoutBuilder(
@@ -811,7 +1390,7 @@ class _SeekWaveform extends StatelessWidget {
           child: Text(
             formatDuration(duration),
             textAlign: TextAlign.end,
-            style: PlayerScreen._timeStyle,
+            style: _timeStyle,
           ),
         ),
       ],
@@ -831,16 +1410,17 @@ class _BlurredArtworkBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (original.isNotEmpty)
+        if (original.isNotEmpty || fallback.isNotEmpty)
           CachedNetworkImage(
-            imageUrl: original,
+            imageUrl: fallback.isNotEmpty ? fallback : original,
             fit: BoxFit.cover,
             placeholder: (context, url) => Container(color: Colors.black),
-            errorWidget: (context, url, error) =>
-                fallback.isNotEmpty && fallback != original
+            memCacheWidth: 900,
+            errorWidget: (context, url, error) => original.isNotEmpty
                 ? CachedNetworkImage(
-                    imageUrl: fallback,
+                    imageUrl: original,
                     fit: BoxFit.cover,
+                    memCacheWidth: 900,
                     errorWidget: (context, url, error) =>
                         Container(color: Colors.black),
                   )
@@ -865,10 +1445,16 @@ class _BlurredArtworkBackground extends StatelessWidget {
   }
 }
 
+const _timeStyle = TextStyle(
+  color: Colors.white70,
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+);
+
 class _Artwork extends StatelessWidget {
   final String? imageUrl;
 
-  const _Artwork({required this.imageUrl});
+  const _Artwork({super.key, required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -904,13 +1490,13 @@ class _ArtworkImage extends StatelessWidget {
     final original = imageUrl ?? '';
     final fallback = _hiFiArtworkUrl(imageUrl);
     return CachedNetworkImage(
-      imageUrl: original,
+      imageUrl: fallback.isNotEmpty ? fallback : original,
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(color: const Color(0xFF282828)),
-      errorWidget: (context, url, error) =>
-          fallback.isNotEmpty && fallback != original
+      memCacheWidth: 900,
+      errorWidget: (context, url, error) => original.isNotEmpty
           ? CachedNetworkImage(
-              imageUrl: fallback,
+              imageUrl: original,
               fit: BoxFit.cover,
               placeholder: (context, url) =>
                   Container(color: const Color(0xFF282828)),
@@ -946,11 +1532,68 @@ String _hiFiArtworkUrl(String? url) {
     'mqdefault.jpg',
     'hqdefault.jpg',
     'sddefault.jpg',
+    'maxresdefault.jpg',
   };
   if (!replaceable.contains(last)) return value;
   final segments = [...uri.pathSegments];
-  segments[segments.length - 1] = 'hqdefault.jpg';
+  segments[segments.length - 1] = 'maxresdefault.jpg';
   return uri.replace(pathSegments: segments).toString();
+}
+
+class _SaveActionIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _SaveActionIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, size: 20),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: Colors.white.withAlpha(24),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          minimumSize: const Size(0, 38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
 }
 
 class _HeaderButton extends StatelessWidget {

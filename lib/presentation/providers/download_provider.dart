@@ -24,6 +24,10 @@ class DownloadProvider extends ChangeNotifier {
 
   StreamSubscription? _progressSub;
   StreamSubscription? _completedSub;
+  final StreamController<String> _completionMessages =
+      StreamController<String>.broadcast();
+
+  Stream<String> get completionMessages => _completionMessages.stream;
 
   bool isDownloadingPlaylist(String playlistId) =>
       _downloadingPlaylists.contains(playlistId);
@@ -85,6 +89,7 @@ class DownloadProvider extends ChangeNotifier {
     if (allDownloaded) {
       _downloadedPlaylists.add(playlist.id);
     }
+    _completionMessages.add('"${playlist.title}" download complete');
     _activeDownloads.clear();
     _progressSub?.cancel();
     _completedSub?.cancel();
@@ -111,6 +116,7 @@ class DownloadProvider extends ChangeNotifier {
     _activeDownloads.remove(track.id);
     await _refreshDownloadedIds();
     await _refreshDownloadedPlaylists();
+    _completionMessages.add('"${track.title}" download complete');
     notifyListeners();
   }
 
@@ -194,6 +200,7 @@ class DownloadProvider extends ChangeNotifier {
     _downloadingPlaylists.clear();
     _playlistDownloadProgress.clear();
     _downloadService.dispose();
+    _completionMessages.close();
     super.dispose();
   }
 }

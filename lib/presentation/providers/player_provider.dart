@@ -30,7 +30,9 @@ class PlayerProvider extends ChangeNotifier {
   int _currentIndex = 0;
   bool _isPlaying = false;
   bool _isLoading = false;
+  bool _isHandlingCompletion = false;
   bool _shuffleMode = false;
+  AudioQuality _lastPlaybackQuality = AudioQuality.low;
   repeat.PlaybackRepeatMode _repeatMode = repeat.PlaybackRepeatMode.none;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -237,6 +239,7 @@ class PlayerProvider extends ChangeNotifier {
     Track track, {
     AudioQuality quality = AudioQuality.low,
   }) async {
+    _lastPlaybackQuality = quality;
     _isLoading = true;
     _error = null;
     _currentTrack = track;
@@ -268,13 +271,17 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> playFromQueue(
-    int index, {
+  Future<String> getVideoUrl(
+    Track track, {
     AudioQuality quality = AudioQuality.low,
-  }) async {
+  }) {
+    return _audioRepository.getVideoUrl(track, quality: quality.name);
+  }
+
+  Future<void> playFromQueue(int index, {AudioQuality? quality}) async {
     if (index < 0 || index >= _queue.length) return;
     _currentIndex = index;
-    await playTrack(_queue[index], quality: quality);
+    await playTrack(_queue[index], quality: quality ?? _lastPlaybackQuality);
   }
 
   Future<void> togglePlayPause() async {
@@ -318,7 +325,7 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> previous() async {
     if (_currentIndex > 0) {
       _currentIndex--;
-      await playTrack(_queue[_currentIndex]);
+      await playTrack(_queue[_currentIndex], quality: _lastPlaybackQuality);
     } else {
       await seekTo(Duration.zero);
     }
@@ -358,16 +365,69 @@ class PlayerProvider extends ChangeNotifier {
     _completionSubscription = _audioRepository.processingStateStream.listen((
       state,
     ) {
-      if (state == ProcessingState.completed && _queue.isNotEmpty) {
-        if (_repeatMode == repeat.PlaybackRepeatMode.one) {
-          playFromQueue(_currentIndex);
-        } else if (_currentIndex + 1 < _queue.length) {
-          next();
-        } else if (_repeatMode == repeat.PlaybackRepeatMode.all) {
-          playFromQueue(0);
-        }
+      if (state == ProcessingState.completed) {
+        unawaited(_handleCompletion());
       }
     });
+  }
+
+  Future<void> _handleCompletion() async {
+    if (_isHandlingCompletion || _queue.isEmpty) return;
+    _isHandlingCompletion = true;
+
+    try {
+      if (_repeatMode == repeat.PlaybackRepeatMode.one) {
+        await playFromQueue(_currentIndex);
+        return;
+      }
+      if (_currentIndex + 1 < _queue.length) {
+        await playFromQueue(_currentIndex + 1);
+        return;
+      }
+      if (_repeatMode == repeat.PlaybackRepeatMode.all) {
+        await playFromQueue(0);
+        return;
+      }
+
+      await _playRecommendationsFromCurrentTrack();
+    } finally {
+      _isHandlingCompletion = false;
+    }
+  }
+
+  Future<void> _playRecommendationsFromCurrentTrack() async {
+    final seed = _currentTrack ?? _queue[_currentIndex];
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final recommendations = await _audioRepository.getRecommendations(seed);
+      final seenIds = _queue.map((track) => track.id).toSet();
+      final uniqueRecommendations = <Track>[];
+      for (final track in recommendations) {
+        if (seenIds.add(track.id)) {
+          uniqueRecommendations.add(track);
+        }
+      }
+
+      if (uniqueRecommendations.isEmpty) {
+        _isPlaying = false;
+        return;
+      }
+
+      final firstRecommendationIndex = _queue.length;
+      _queue = [..._queue, ...uniqueRecommendations];
+      _currentIndex = firstRecommendationIndex;
+      notifyListeners();
+      await playTrack(_queue[_currentIndex], quality: _lastPlaybackQuality);
+    } catch (e) {
+      _isPlaying = false;
+      _error = 'Failed to load recommendations: ${e.toString()}';
+      notifyListeners();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> stop() async {

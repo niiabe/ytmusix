@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/playlist_sort_mode.dart';
+import '../../domain/entities/chart_item.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
+import '../../service/chart_service.dart';
+import '../providers/chart_provider.dart';
 import '../providers/playlist_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/download_provider.dart';
@@ -23,13 +28,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _tabs = ['Recent', 'New', 'Trend', 'Podcasts', 'Favourites'];
+  static const _tabs = [
+    'Recent',
+    'Playlists',
+    'New',
+    'Trend',
+    'Podcasts',
+    'Favourites',
+  ];
   int _homeTab = 0;
+  StreamSubscription<String>? _downloadCompletionSub;
+
+  bool get _isPlaylistTab => _homeTab == 1;
+  bool get _isFavoritesTab => _homeTab == 5;
 
   String? get _activeFeedKey {
-    if (_homeTab == 1) return 'new';
-    if (_homeTab == 2) return 'trend';
-    if (_homeTab == 3) return 'podcasts';
+    if (_homeTab == 2) return 'new';
+    if (_homeTab == 3) return 'trend';
+    if (_homeTab == 4) return 'podcasts';
     return null;
   }
 
@@ -39,8 +55,27 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlaylistProvider>().loadSavedPlaylists();
       context.read<PlaylistProvider>().loadFavoriteIds();
+      context.read<ChartProvider>().loadCharts();
       context.read<PlayerProvider>().loadRecentlyPlayed();
+      _downloadCompletionSub ??= context
+          .read<DownloadProvider>()
+          .completionMessages
+          .listen((message) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          });
     });
+  }
+
+  @override
+  void dispose() {
+    _downloadCompletionSub?.cancel();
+    super.dispose();
   }
 
   void _selectHomeTab(int index) {
@@ -115,12 +150,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(context),
-            _buildErrorBanner(),
-            _buildNowPlaying(context),
-            Expanded(child: _buildContent(context)),
+            Column(
+              children: [
+                _buildHeader(context),
+                _buildErrorBanner(),
+                Expanded(child: _buildContent(context)),
+              ],
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 4,
+              child: _buildNowPlaying(context),
+            ),
           ],
         ),
       ),
@@ -322,6 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildContent(BuildContext context) {
     return Consumer3<PlaylistProvider, PlayerProvider, DownloadProvider>(
       builder: (context, provider, playerProvider, downloadProvider, _) {
+        final chartProvider = context.watch<ChartProvider>();
         final feedKey = _activeFeedKey;
         final feedTracks = feedKey == null
             ? const <Track>[]
@@ -335,6 +380,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (provider.playlists.isEmpty &&
             provider.favoriteIds.isEmpty &&
+            chartProvider.recommendedSongs.isEmpty &&
+            chartProvider.hotAlbums.isEmpty &&
+            chartProvider.billboard200.isEmpty &&
+            !chartProvider.isLoading(ChartService.recommendedSongsKey) &&
+            !chartProvider.isLoading(ChartService.hotAlbumsKey) &&
+            !chartProvider.isLoading(ChartService.billboardAlbumsKey) &&
             feedKey == null) {
           return Center(
             child: Column(
@@ -366,10 +417,18 @@ class _HomeScreenState extends State<HomeScreen> {
             if (key != null) {
               return provider.loadHomeFeed(key, force: true);
             }
-            return provider.loadSavedPlaylists();
+            return Future.wait([
+              provider.loadSavedPlaylists(),
+              chartProvider.loadCharts(force: true),
+            ]);
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              playerProvider.currentTrack == null ? 28 : 146,
+            ),
             children: [
               const Text(
                 'Browse',
@@ -378,6 +437,49 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 18),
               _buildCategoryTabs(),
               const SizedBox(height: 22),
+              if (_homeTab == 0) ...[
+                _buildChartShelf(
+                  context,
+                  title: 'Recommended Songs',
+                  subtitle: 'Apple Music Ghana Hot 100',
+                  items: chartProvider.recommendedSongs,
+                  isLoading: chartProvider.isLoading(
+                    ChartService.recommendedSongsKey,
+                  ),
+                  playerProvider: playerProvider,
+                  playlistProvider: provider,
+                  playlistId: '__chart_recommended_songs',
+                  onRefresh: () =>
+                      chartProvider.loadRecommendedSongs(force: true),
+                ),
+                const SizedBox(height: 28),
+                _buildChartShelf(
+                  context,
+                  title: 'Hot Albums',
+                  subtitle: 'Apple Music Ghana albums',
+                  items: chartProvider.hotAlbums,
+                  isLoading: chartProvider.isLoading(ChartService.hotAlbumsKey),
+                  playerProvider: playerProvider,
+                  playlistProvider: provider,
+                  playlistId: '__chart_hot_albums',
+                  onRefresh: () => chartProvider.loadHotAlbums(force: true),
+                ),
+                const SizedBox(height: 28),
+                _buildChartShelf(
+                  context,
+                  title: 'US Billboard 200',
+                  subtitle: 'Weekly album chart',
+                  items: chartProvider.billboard200,
+                  isLoading: chartProvider.isLoading(
+                    ChartService.billboardAlbumsKey,
+                  ),
+                  playerProvider: playerProvider,
+                  playlistProvider: provider,
+                  playlistId: '__chart_billboard_200',
+                  onRefresh: () => chartProvider.loadBillboard200(force: true),
+                ),
+                const SizedBox(height: 28),
+              ],
               if (feedKey != null)
                 _buildTrackShelf(
                   context,
@@ -386,21 +488,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   playerProvider,
                   feedKey,
                 )
-              else
+              else if (_isPlaylistTab || _isFavoritesTab)
                 _buildPlaylistShelf(
                   context,
                   _filteredPlaylists(provider),
                   playerProvider,
                   downloadProvider,
-                ),
+                )
+              else
+                const SizedBox.shrink(),
               const SizedBox(height: 28),
-              _buildTopHits(
-                context,
-                _filteredPlaylists(provider),
-                feedTracks,
-                playerProvider,
-                _homeTab == 4 ? provider.favoriteIds : null,
-              ),
+              if (_homeTab != 0)
+                _buildTopHits(
+                  context,
+                  _filteredPlaylists(provider),
+                  feedTracks,
+                  playerProvider,
+                  _isFavoritesTab ? provider.favoriteIds : null,
+                ),
             ],
           ),
         );
@@ -621,6 +726,235 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildChartShelf(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required List<ChartItem> items,
+    required bool isLoading,
+    required PlayerProvider playerProvider,
+    required PlaylistProvider playlistProvider,
+    required String playlistId,
+    required Future<void> Function() onRefresh,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                tooltip: 'Refresh $title',
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                onPressed: isLoading ? null : onRefresh,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (isLoading && items.isEmpty)
+          const SizedBox(
+            height: 184,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (items.isEmpty)
+          _EmptyShelf(tabLabel: title)
+        else
+          SizedBox(
+            height: 184,
+            child: ListView.separated(
+              clipBehavior: Clip.none,
+              scrollDirection: Axis.horizontal,
+              itemCount: items.take(18).length,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return SizedBox(
+                  width: 138,
+                  child: _ChartItemCard(
+                    item: item,
+                    onTap: () => _playChartItem(
+                      context,
+                      item,
+                      items,
+                      index,
+                      playerProvider,
+                      playlistProvider,
+                      playlistId,
+                      openPlayer: true,
+                    ),
+                    onPlay: () => _playChartItem(
+                      context,
+                      item,
+                      items,
+                      index,
+                      playerProvider,
+                      playlistProvider,
+                      playlistId,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _playChartItem(
+    BuildContext context,
+    ChartItem item,
+    List<ChartItem> sourceItems,
+    int index,
+    PlayerProvider playerProvider,
+    PlaylistProvider playlistProvider,
+    String playlistId, {
+    bool openPlayer = false,
+  }) async {
+    final chartProvider = context.read<ChartProvider>();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Finding ${item.title} on YouTube...'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+
+    final playableItems = item.kind == ChartItemKind.album
+        ? await chartProvider.getAlbumSongs(item)
+        : sourceItems.take(18).toList();
+    final tracks = <Track>[];
+
+    final selectedSeed = playableItems.isNotEmpty ? playableItems.first : item;
+    final selectedTrack = await _findChartTrack(
+      playlistProvider,
+      selectedSeed,
+      albumContext: item.kind == ChartItemKind.album ? item : null,
+    );
+    if (!context.mounted) return;
+    if (selectedTrack == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not find ${item.title} on YouTube')),
+      );
+      return;
+    }
+
+    tracks.add(selectedTrack);
+
+    for (final chartItem in playableItems.skip(1).take(17)) {
+      final track = await _findChartTrack(
+        playlistProvider,
+        chartItem,
+        albumContext: item.kind == ChartItemKind.album ? item : null,
+      );
+      if (track != null) {
+        if (tracks.every((queued) => queued.id != track.id)) {
+          tracks.add(track);
+        }
+      }
+    }
+
+    if (!context.mounted) return;
+    final settings = context.read<SettingsProvider>();
+    playerProvider.setQueue(tracks, startIndex: 0, playlistId: playlistId);
+    await playerProvider.playTrack(
+      selectedTrack,
+      quality: settings.audioQuality,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (openPlayer) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PlayerScreen()),
+      );
+    }
+  }
+
+  Future<Track?> _findChartTrack(
+    PlaylistProvider playlistProvider,
+    ChartItem item, {
+    ChartItem? albumContext,
+  }) async {
+    final rawTitle = item.title.trim();
+    final rawArtist = item.artist.trim();
+    final cleanTitle = _cleanSearchText(item.title);
+    final cleanArtist = _cleanSearchText(item.artist);
+    final albumTitle = albumContext == null
+        ? null
+        : _cleanSearchText(albumContext.title);
+    final queryCandidates = item.kind == ChartItemKind.album
+        ? [
+            '$rawArtist $rawTitle album songs',
+            '$cleanArtist $cleanTitle album songs',
+            '$cleanArtist $cleanTitle full album',
+            '$rawTitle $rawArtist album',
+            '$cleanTitle $cleanArtist album',
+            '$rawArtist $rawTitle',
+            '$cleanTitle $cleanArtist',
+          ]
+        : [
+            '$rawArtist $rawTitle official audio',
+            '$cleanArtist $cleanTitle official audio',
+            '$rawTitle $rawArtist official audio',
+            '$cleanTitle $cleanArtist official audio',
+            if (albumTitle != null) '$rawArtist $rawTitle $albumTitle',
+            if (albumTitle != null) '$cleanArtist $cleanTitle $albumTitle',
+            '$rawArtist $rawTitle lyrics',
+            '$cleanArtist $cleanTitle lyrics',
+            '$rawTitle $rawArtist lyrics',
+            '$cleanTitle $cleanArtist lyrics',
+            '$rawArtist $rawTitle',
+            '$cleanArtist $cleanTitle',
+            '$rawTitle $rawArtist',
+            '$cleanTitle $cleanArtist',
+          ];
+    final seenQueries = <String>{};
+    final queries = [
+      for (final query in queryCandidates)
+        if (query.trim().isNotEmpty && seenQueries.add(query.trim()))
+          query.trim(),
+    ];
+
+    for (final query in queries) {
+      final results = await playlistProvider.searchSilently(query);
+      if (results.isNotEmpty) return results.first;
+    }
+    return null;
+  }
+
+  String _cleanSearchText(String value) {
+    return value
+        .replaceAll(RegExp(r'\([^)]*\)'), ' ')
+        .replaceAll(RegExp(r'\[[^\]]*\]'), ' ')
+        .replaceAll(
+          RegExp(r'\b(feat|ft|with)\.?\b.*$', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   Widget _buildTopHits(
     BuildContext context,
     List<Playlist> playlists,
@@ -649,10 +983,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final topTracks = tracks.values.take(6).toList();
     final title = switch (_homeTab) {
-      1 => 'New from YouTube',
-      2 => 'Trending on YouTube',
-      3 => 'Ghana podcasts',
-      4 => 'Favourite tracks',
+      1 => 'Playlist tracks',
+      2 => 'New from YouTube',
+      3 => 'Trending on YouTube',
+      4 => 'Ghana podcasts',
+      5 => 'Favourite tracks',
       _ => 'Recent plays',
     };
 
@@ -678,7 +1013,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _homeTab == 4
+                    _homeTab == 5
                         ? 'Star tracks to fill your favourites chart.'
                         : _activeFeedKey != null
                         ? 'Pull to refresh YouTube results.'
@@ -732,8 +1067,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
       case 2:
       case 3:
-        return playlists;
       case 4:
+        return playlists;
+      case 5:
         final favoriteIds = provider.favoriteIds;
         return playlists
             .where(
@@ -863,6 +1199,103 @@ class _HomeTrackCard extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             track.author ?? 'YouTube',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartItemCard extends StatelessWidget {
+  final ChartItem item;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+
+  const _ChartItemCard({
+    required this.item,
+    required this.onTap,
+    required this.onPlay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 138,
+                  height: 138,
+                  child: Image.network(
+                    item.artworkUrl ?? '',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      color: const Color(0xFF252525),
+                      child: Icon(
+                        item.kind == ChartItemKind.album
+                            ? Icons.album_rounded
+                            : Icons.music_note_rounded,
+                        color: Colors.white38,
+                        size: 42,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(190),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '#${item.rank}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: _MiniAction(
+                  icon: Icons.play_arrow_rounded,
+                  onPressed: onPlay,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            item.artist,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

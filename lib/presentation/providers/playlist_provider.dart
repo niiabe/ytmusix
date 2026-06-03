@@ -451,6 +451,46 @@ class PlaylistProvider extends ChangeNotifier {
     }
   }
 
+  Future<List<Track>> searchSilently(String query) async {
+    try {
+      return await _repository.search(query);
+    } catch (e) {
+      dev.log(
+        'Silent search failed for "$query": $e',
+        name: 'PlaylistProvider',
+      );
+      return [];
+    }
+  }
+
+  Future<void> savePlaylistFromTracks({
+    required String title,
+    required List<Track> tracks,
+  }) async {
+    if (tracks.isEmpty) return;
+    final playlist = Playlist(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      title: title,
+      thumbnailUrl: tracks.first.thumbnailUrl,
+      author: 'Local playlist',
+      videoCount: tracks.length,
+      tracks: [
+        for (final item in tracks.indexed)
+          Track(
+            id: item.$2.id,
+            title: item.$2.title,
+            thumbnailUrl: item.$2.thumbnailUrl,
+            duration: item.$2.duration,
+            author: item.$2.author,
+            index: item.$1,
+          ),
+      ],
+    );
+    await _repository.savePlaylist(playlist);
+    await _reloadSilently();
+    notifyListeners();
+  }
+
   Future<void> loadHomeFeed(String key, {bool force = false}) async {
     if (!force && _homeFeeds.containsKey(key)) return;
     if (_loadingHomeFeeds.contains(key)) return;

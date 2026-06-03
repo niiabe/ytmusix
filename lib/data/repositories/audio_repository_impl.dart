@@ -31,6 +31,20 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   @override
+  Future<String> getVideoUrl(Track track, {String quality = 'medium'}) {
+    return remoteDataSource.getVideoUrl(track.id, quality: quality);
+  }
+
+  @override
+  Future<List<Track>> getRecommendations(Track seed, {int limit = 20}) async {
+    final recommendations = await remoteDataSource.getRecommendations(
+      seed.id,
+      limit: limit,
+    );
+    return recommendations.map((track) => track.toEntity()).toList();
+  }
+
+  @override
   Future<void> playTrack(Track track, String audioUrl) async {
     final item = MediaItem(
       id: track.id,

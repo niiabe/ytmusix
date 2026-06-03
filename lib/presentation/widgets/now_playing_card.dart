@@ -31,14 +31,19 @@ class NowPlayingCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withAlpha(20),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.primary.withAlpha(50),
-          ),
+          color: const Color(0xFF191919),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withAlpha(16)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(95),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -79,7 +84,10 @@ class NowPlayingCard extends StatelessWidget {
                         track.author ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -98,7 +106,9 @@ class NowPlayingCard extends StatelessWidget {
                     ),
                   IconButton(
                     icon: Icon(
-                      isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                      isPlaying
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
                       size: 36,
                     ),
                     onPressed: onPlayPause,

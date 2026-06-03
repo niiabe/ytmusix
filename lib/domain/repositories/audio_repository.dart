@@ -4,6 +4,8 @@ import '../entities/video.dart';
 
 abstract class AudioRepository {
   Future<String> getAudioUrl(Track track, {String quality = 'medium'});
+  Future<String> getVideoUrl(Track track, {String quality = 'medium'});
+  Future<List<Track>> getRecommendations(Track seed, {int limit = 20});
   Future<void> playTrack(Track track, String audioUrl);
   Future<void> play(String url);
   Future<void> pause();

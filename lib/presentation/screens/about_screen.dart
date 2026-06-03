@@ -88,11 +88,104 @@ class AboutScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const LicensesScreen()),
                   ),
                 ),
+                const SizedBox(height: 18),
+                const _ChangelogSection(),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _ChangelogSection extends StatelessWidget {
+  const _ChangelogSection();
+
+  static const _items = [
+    (
+      'Next',
+      'Added autoplay recommendations, Apple Music Ghana chart shelves, Billboard 200 albums, and refreshed About details.',
+    ),
+    (
+      '1.1.0',
+      'Improved playlist browsing, downloads, favourites, queue tools, and playback controls.',
+    ),
+    (
+      '1.0.0',
+      'Initial Android release for streaming public YouTube playlists, videos, and mixes.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171717),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withAlpha(14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.history_rounded, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Changelog',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ..._items.indexed.map((entry) {
+            final index = entry.$1;
+            final item = entry.$2;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _items.length - 1 ? 0 : 14,
+              ),
+              child: _ChangelogItem(version: item.$1, body: item.$2),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChangelogItem extends StatelessWidget {
+  final String version;
+  final String body;
+
+  const _ChangelogItem({required this.version, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            version,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            body,
+            style: const TextStyle(color: Colors.white54, height: 1.35),
+          ),
+        ),
+      ],
     );
   }
 }
