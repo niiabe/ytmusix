@@ -176,15 +176,17 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
         children: [
+          _homeLogoButton(),
+          const Spacer(),
           _roundIconButton(
-            icon: Icons.search,
+            icon: Icons.search_rounded,
             tooltip: 'Search YouTube',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SearchScreen()),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Consumer<PlaylistProvider>(
             builder: (context, provider, _) => _roundIconButton(
               icon: Icons.tune_rounded,
@@ -209,6 +211,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _homeLogoButton() {
+    return Container(
+      width: 54,
+      height: 54,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFF171717),
+        borderRadius: BorderRadius.circular(18),
+        // REMOVE THIS LINE
+        // border: Border.all(color: Colors.white.withAlpha(10)),
+      ),
+      child: const PixelLogo(size: 34),
     );
   }
 
@@ -382,10 +399,12 @@ class _HomeScreenState extends State<HomeScreen> {
             provider.favoriteIds.isEmpty &&
             chartProvider.recommendedSongs.isEmpty &&
             chartProvider.hotAlbums.isEmpty &&
-            chartProvider.billboard200.isEmpty &&
+            chartProvider.appleTopSongs.isEmpty &&
             !chartProvider.isLoading(ChartService.recommendedSongsKey) &&
             !chartProvider.isLoading(ChartService.hotAlbumsKey) &&
-            !chartProvider.isLoading(ChartService.billboardAlbumsKey) &&
+            !chartProvider.isLoading(
+              ChartService.appleTopSongsKey(chartProvider.appleTopSongsScope),
+            ) &&
             feedKey == null) {
           return Center(
             child: Column(
@@ -467,16 +486,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 28),
                 _buildChartShelf(
                   context,
-                  title: 'US Billboard 200',
-                  subtitle: 'Weekly album chart',
-                  items: chartProvider.billboard200,
+                  title: 'Apple Top 100',
+                  subtitle: '${chartProvider.appleTopSongsScope.label} songs',
+                  items: chartProvider.appleTopSongs,
                   isLoading: chartProvider.isLoading(
-                    ChartService.billboardAlbumsKey,
+                    ChartService.appleTopSongsKey(
+                      chartProvider.appleTopSongsScope,
+                    ),
                   ),
                   playerProvider: playerProvider,
                   playlistProvider: provider,
-                  playlistId: '__chart_billboard_200',
-                  onRefresh: () => chartProvider.loadBillboard200(force: true),
+                  playlistId:
+                      '__chart_apple_top_100_${chartProvider.appleTopSongsScope.name}',
+                  headerAction: _buildAppleTopScopeSelector(chartProvider),
+                  autoPlayOnResolve: false,
+                  onRefresh: () => chartProvider.loadAppleTopSongs(force: true),
                 ),
                 const SizedBox(height: 28),
               ],
@@ -736,6 +760,8 @@ class _HomeScreenState extends State<HomeScreen> {
     required PlaylistProvider playlistProvider,
     required String playlistId,
     required Future<void> Function() onRefresh,
+    Widget? headerAction,
+    bool autoPlayOnResolve = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,6 +787,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+            if (headerAction != null) ...[
+              const SizedBox(width: 8),
+              headerAction,
+            ],
             SizedBox(
               width: 36,
               height: 36,
@@ -803,6 +833,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       playlistProvider,
                       playlistId,
                       openPlayer: true,
+                      autoPlayOnResolve: autoPlayOnResolve,
                     ),
                     onPlay: () => _playChartItem(
                       context,
@@ -812,6 +843,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       playerProvider,
                       playlistProvider,
                       playlistId,
+                      autoPlayOnResolve: autoPlayOnResolve,
                     ),
                   ),
                 );
@@ -819,6 +851,46 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildAppleTopScopeSelector(ChartProvider chartProvider) {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withAlpha(16)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<AppleTopSongsScope>(
+          value: chartProvider.appleTopSongsScope,
+          dropdownColor: const Color(0xFF1F1F1F),
+          borderRadius: BorderRadius.circular(14),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+          items: AppleTopSongsScope.values
+              .map(
+                (scope) =>
+                    DropdownMenuItem(value: scope, child: Text(scope.label)),
+              )
+              .toList(),
+          onChanged:
+              chartProvider.isLoading(
+                ChartService.appleTopSongsKey(chartProvider.appleTopSongsScope),
+              )
+              ? null
+              : (scope) {
+                  if (scope == null) return;
+                  chartProvider.loadAppleTopSongs(scope: scope);
+                },
+        ),
+      ),
     );
   }
 
@@ -831,62 +903,176 @@ class _HomeScreenState extends State<HomeScreen> {
     PlaylistProvider playlistProvider,
     String playlistId, {
     bool openPlayer = false,
+    bool autoPlayOnResolve = true,
   }) async {
     final chartProvider = context.read<ChartProvider>();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Finding ${item.title} on YouTube...'),
-        duration: const Duration(seconds: 1),
+    final settings = context.read<SettingsProvider>();
+    final notifier = ValueNotifier(
+      _ChartResolveState(
+        item: item,
+        status: item.kind == ChartItemKind.album
+            ? 'Finding ${item.title} songs'
+            : 'Finding ${item.title} song',
       ),
     );
+    var sheetActive = true;
 
-    final playableItems = item.kind == ChartItemKind.album
-        ? await chartProvider.getAlbumSongs(item)
-        : sourceItems.take(18).toList();
-    final tracks = <Track>[];
-
-    final selectedSeed = playableItems.isNotEmpty ? playableItems.first : item;
-    final selectedTrack = await _findChartTrack(
-      playlistProvider,
-      selectedSeed,
-      albumContext: item.kind == ChartItemKind.album ? item : null,
-    );
-    if (!context.mounted) return;
-    if (selectedTrack == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not find ${item.title} on YouTube')),
-      );
-      return;
+    void update(_ChartResolveState Function(_ChartResolveState state) apply) {
+      if (!sheetActive) return;
+      notifier.value = apply(notifier.value);
     }
 
-    tracks.add(selectedTrack);
-
-    for (final chartItem in playableItems.skip(1).take(17)) {
-      final track = await _findChartTrack(
-        playlistProvider,
-        chartItem,
-        albumContext: item.kind == ChartItemKind.album ? item : null,
-      );
-      if (track != null) {
-        if (tracks.every((queued) => queued.id != track.id)) {
-          tracks.add(track);
+    Future<void> playResolvedTrack(Track track) async {
+      final state = notifier.value;
+      final queue = <Track>[];
+      for (final chartItem in state.items.take(18)) {
+        final resolved = state.resolvedTracks[chartItem.id];
+        if (resolved != null && queue.every((item) => item.id != resolved.id)) {
+          queue.add(resolved);
         }
       }
+      if (queue.isEmpty) return;
+      final startIndex = queue.indexWhere((item) => item.id == track.id);
+      final index = startIndex < 0 ? 0 : startIndex;
+      playerProvider.setQueue(queue, startIndex: index, playlistId: playlistId);
+      await playerProvider.playTrack(
+        queue[index],
+        quality: settings.audioQuality,
+      );
+      update(
+        (state) => state.copyWith(
+          hasStartedPlayback: true,
+          status: 'Playing ${queue[index].title}',
+        ),
+      );
     }
 
-    if (!context.mounted) return;
-    final settings = context.read<SettingsProvider>();
-    playerProvider.setQueue(tracks, startIndex: 0, playlistId: playlistId);
-    await playerProvider.playTrack(
-      selectedTrack,
-      quality: settings.audioQuality,
-    );
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    if (openPlayer) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const PlayerScreen()),
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ChartItemDetailsSheet(
+        notifier: notifier,
+        onPlayTrack: playResolvedTrack,
+      ),
+    ).whenComplete(() {
+      sheetActive = false;
+      notifier.dispose();
+    });
+
+    try {
+      final isAlbum = item.kind == ChartItemKind.album;
+      final playableItems = item.kind == ChartItemKind.album
+          ? await chartProvider.getAlbumSongs(item)
+          : [
+              item,
+              ...sourceItems
+                  .where((sourceItem) => sourceItem.id != item.id)
+                  .take(17),
+            ];
+      update(
+        (state) => state.copyWith(
+          items: playableItems,
+          status: item.kind == ChartItemKind.album
+              ? 'Finding ${item.title} songs'
+              : 'Finding ${item.title} song',
+        ),
+      );
+
+      final tracks = <Track>[];
+      var playbackStarted = false;
+
+      for (final chartItem in playableItems.take(18)) {
+        update(
+          (state) => state.copyWith(
+            activeItemId: chartItem.id,
+            status: item.kind == ChartItemKind.album
+                ? 'Finding ${item.title} songs'
+                : 'Finding ${chartItem.title} song',
+          ),
+        );
+
+        final track = await _findChartTrack(
+          playlistProvider,
+          chartItem,
+          albumContext: item.kind == ChartItemKind.album ? item : null,
+        );
+        if (track == null) continue;
+        if (tracks.any((queued) => queued.id == track.id)) continue;
+
+        tracks.add(track);
+        final resolvedTracks = Map<String, Track>.from(
+          notifier.value.resolvedTracks,
+        )..[chartItem.id] = track;
+        update(
+          (state) => state.copyWith(
+            tracks: List<Track>.from(tracks),
+            resolvedTracks: resolvedTracks,
+            status: item.kind == ChartItemKind.album
+                ? 'Found ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'} from ${item.title}'
+                : 'Found ${chartItem.title}',
+          ),
+        );
+
+        if (isAlbum || !autoPlayOnResolve) {
+          continue;
+        }
+
+        if (!playbackStarted) {
+          playbackStarted = true;
+          playerProvider.setQueue(
+            tracks,
+            startIndex: 0,
+            playlistId: playlistId,
+          );
+          await playerProvider.playTrack(track, quality: settings.audioQuality);
+          update(
+            (state) => state.copyWith(
+              hasStartedPlayback: true,
+              status: item.kind == ChartItemKind.album
+                  ? 'Playing while finding ${item.title} songs'
+                  : 'Playing ${chartItem.title}',
+            ),
+          );
+          if (openPlayer && context.mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          }
+        } else {
+          playerProvider.setQueue(
+            tracks,
+            startIndex: 0,
+            playlistId: playlistId,
+          );
+        }
+      }
+
+      if (tracks.isEmpty) {
+        update(
+          (state) => state.copyWith(
+            isResolving: false,
+            error: 'Could not find ${item.title} on YouTube',
+            status: 'No playable match found',
+          ),
+        );
+        return;
+      }
+
+      update(
+        (state) => state.copyWith(
+          isResolving: false,
+          clearActiveItem: true,
+          status: item.kind == ChartItemKind.album
+              ? 'Ready: ${tracks.length} ${tracks.length == 1 ? 'song' : 'songs'} found'
+              : 'Ready to play',
+        ),
+      );
+    } catch (e) {
+      update(
+        (state) => state.copyWith(
+          isResolving: false,
+          error: 'Could not load ${item.title}',
+          status: e.toString(),
+        ),
       );
     }
   }
@@ -1125,6 +1311,371 @@ class _EmptyShelf extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChartResolveState {
+  final ChartItem item;
+  final List<ChartItem> items;
+  final List<Track> tracks;
+  final Map<String, Track> resolvedTracks;
+  final String status;
+  final String? activeItemId;
+  final String? error;
+  final bool isResolving;
+  final bool hasStartedPlayback;
+
+  const _ChartResolveState({
+    required this.item,
+    required this.status,
+    this.items = const [],
+    this.tracks = const [],
+    this.resolvedTracks = const {},
+    this.activeItemId,
+    this.error,
+    this.isResolving = true,
+    this.hasStartedPlayback = false,
+  });
+
+  _ChartResolveState copyWith({
+    List<ChartItem>? items,
+    List<Track>? tracks,
+    Map<String, Track>? resolvedTracks,
+    String? status,
+    String? activeItemId,
+    bool clearActiveItem = false,
+    String? error,
+    bool? isResolving,
+    bool? hasStartedPlayback,
+  }) {
+    return _ChartResolveState(
+      item: item,
+      items: items ?? this.items,
+      tracks: tracks ?? this.tracks,
+      resolvedTracks: resolvedTracks ?? this.resolvedTracks,
+      status: status ?? this.status,
+      activeItemId: clearActiveItem ? null : activeItemId ?? this.activeItemId,
+      error: error ?? this.error,
+      isResolving: isResolving ?? this.isResolving,
+      hasStartedPlayback: hasStartedPlayback ?? this.hasStartedPlayback,
+    );
+  }
+}
+
+class _ChartItemDetailsSheet extends StatelessWidget {
+  final ValueNotifier<_ChartResolveState> notifier;
+  final Future<void> Function(Track track) onPlayTrack;
+
+  const _ChartItemDetailsSheet({
+    required this.notifier,
+    required this.onPlayTrack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.62,
+      minChildSize: 0.42,
+      maxChildSize: 0.88,
+      builder: (context, scrollController) {
+        return ValueListenableBuilder<_ChartResolveState>(
+          valueListenable: notifier,
+          builder: (context, state, _) {
+            final item = state.item;
+            final isAlbum = item.kind == ChartItemKind.album;
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF171717),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SizedBox(
+                          width: 104,
+                          height: 104,
+                          child: Image.network(
+                            item.artworkUrl ?? '',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: const Color(0xFF252525),
+                              child: Icon(
+                                isAlbum
+                                    ? Icons.album_rounded
+                                    : Icons.music_note_rounded,
+                                color: Colors.white38,
+                                size: 38,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isAlbum ? 'Album details' : 'Song details',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              item.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '#${item.rank} • ${item.sourceName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  _ChartResolveStatus(state: state),
+                  const SizedBox(height: 18),
+                  Text(
+                    isAlbum ? 'Album songs' : 'Queue preview',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (state.items.isEmpty)
+                    _ChartPendingTile(
+                      title: state.status,
+                      subtitle: 'Searching YouTube in the background',
+                    )
+                  else
+                    ...state.items.take(18).map((chartItem) {
+                      final track = state.resolvedTracks[chartItem.id];
+                      final isActive = state.activeItemId == chartItem.id;
+                      return _ChartPendingTile(
+                        title: chartItem.title,
+                        subtitle: track == null
+                            ? isActive
+                                  ? 'Finding ${chartItem.title} song'
+                                  : chartItem.artist
+                            : track.author ?? chartItem.artist,
+                        enabled: track != null,
+                        onTap: track == null ? null : () => onPlayTrack(track),
+                        trailing: track != null
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Colors.greenAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ],
+                              )
+                            : isActive
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.hourglass_empty_rounded,
+                                color: Colors.white24,
+                                size: 18,
+                              ),
+                      );
+                    }),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ChartResolveStatus extends StatelessWidget {
+  final _ChartResolveState state;
+
+  const _ChartResolveStatus({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = state.error != null
+        ? Colors.redAccent
+        : state.hasStartedPlayback
+        ? Colors.greenAccent
+        : Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withAlpha(14)),
+      ),
+      child: Row(
+        children: [
+          if (state.isResolving && state.error == null)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              state.error != null
+                  ? Icons.error_outline_rounded
+                  : Icons.play_circle_rounded,
+              color: color,
+              size: 22,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              state.error ?? state.status,
+              style: TextStyle(
+                color: state.error != null ? Colors.redAccent : Colors.white70,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartPendingTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool enabled;
+
+  const _ChartPendingTile({
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.enabled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: const Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: enabled ? onTap : null,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: enabled
+                    ? Theme.of(context).colorScheme.primary.withAlpha(70)
+                    : Colors.white.withAlpha(10),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  enabled
+                      ? Icons.play_circle_fill_rounded
+                      : Icons.music_note_rounded,
+                  color: enabled
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white54,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 10), trailing!],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,12 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import 'package:video_player/video_player.dart';
 import '../../core/constants/repeat_mode.dart' as repeat;
 import '../../core/utils/format_duration.dart';
 import '../../domain/entities/video.dart';
@@ -71,160 +70,180 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 children: [
                   _BlurredArtworkBackground(imageUrl: track.thumbnailUrl),
                   SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-                      child: Column(
-                        children: [
-                          _buildPlayerHeader(context, player, track),
-                          _playbackMode == _PlaybackMode.audio
-                              ? const Spacer()
-                              : const SizedBox(height: 54),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            child: _playbackMode == _PlaybackMode.audio
-                                ? _Artwork(
-                                    key: const ValueKey('audio-artwork'),
-                                    imageUrl: track.thumbnailUrl,
-                                  )
-                                : _InlineVideoPlayer(
-                                    key: ValueKey('video-${track.id}'),
-                                    track: track,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isAudio = _playbackMode == _PlaybackMode.audio;
+                        final compact = constraints.maxHeight < 760;
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                12,
+                                24,
+                                compact ? 16 : 28,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildPlayerHeader(context, player, track),
+                                  SizedBox(
+                                    height: isAudio
+                                        ? (compact ? 18 : 28)
+                                        : (compact ? 24 : 42),
                                   ),
-                          ),
-                          SizedBox(
-                            height: _playbackMode == _PlaybackMode.audio
-                                ? 32
-                                : 30,
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      track.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    child: isAudio
+                                        ? _Artwork(
+                                            key: const ValueKey(
+                                              'audio-artwork',
+                                            ),
+                                            imageUrl: track.thumbnailUrl,
+                                          )
+                                        : _InlineVideoPlayer(
+                                            key: ValueKey('video-${track.id}'),
+                                            track: track,
+                                          ),
+                                  ),
+                                  SizedBox(height: isAudio ? 28 : 24),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              track.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              track.author ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 1.2,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      track.author ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
+                                      IconButton(
+                                        icon: Icon(
+                                          isFav
+                                              ? Icons.favorite_rounded
+                                              : Icons.favorite_border_rounded,
+                                          color: Colors.white,
+                                        ),
+                                        tooltip: isFav
+                                            ? 'Remove from favorites'
+                                            : 'Add to favorites',
+                                        onPressed: () => playlistProvider
+                                            .toggleFavorite(track),
                                       ),
+                                    ],
+                                  ),
+                                  if (isAudio) ...[
+                                    SizedBox(height: compact ? 26 : 34),
+                                    _SeekWaveform(
+                                      position: player.position,
+                                      duration: player.duration,
+                                      bufferedPosition: player.bufferedPosition,
+                                      onSeek: player.seekTo,
                                     ),
+                                    SizedBox(height: compact ? 24 : 30),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _ControlButton(
+                                          icon: Icons.shuffle_rounded,
+                                          active: player.shuffleMode,
+                                          onPressed: player.toggleShuffle,
+                                        ),
+                                        _ControlButton(
+                                          icon: Icons.skip_previous_rounded,
+                                          onPressed: player.previous,
+                                        ),
+                                        player.isLoading
+                                            ? const SizedBox(
+                                                width: 62,
+                                                height: 62,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : SizedBox(
+                                                width: 64,
+                                                height: 64,
+                                                child: IconButton(
+                                                  style: IconButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.white,
+                                                    foregroundColor:
+                                                        Colors.black,
+                                                    shape: const CircleBorder(),
+                                                  ),
+                                                  icon: Icon(
+                                                    player.isPlaying
+                                                        ? Icons.pause_rounded
+                                                        : Icons
+                                                              .play_arrow_rounded,
+                                                    size: 34,
+                                                  ),
+                                                  onPressed:
+                                                      player.togglePlayPause,
+                                                ),
+                                              ),
+                                        _ControlButton(
+                                          icon: Icons.skip_next_rounded,
+                                          onPressed:
+                                              player.currentIndex + 1 <
+                                                  player.queue.length
+                                              ? () => player.next()
+                                              : null,
+                                        ),
+                                        _ControlButton(
+                                          icon: _repeatIconData(
+                                            player.repeatMode,
+                                          ),
+                                          active:
+                                              player.repeatMode !=
+                                              repeat.PlaybackRepeatMode.none,
+                                          onPressed: player.cycleRepeatMode,
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: compact ? 18 : 22),
+                                  ] else
+                                    const SizedBox(height: 22),
+                                  _buildQuickActions(context, player, track),
+                                  if (player.error != null) ...[
+                                    const SizedBox(height: 12),
+                                    _PlayerErrorBanner(message: player.error!),
                                   ],
-                                ),
+                                  SizedBox(height: compact ? 8 : 18),
+                                ],
                               ),
-                              IconButton(
-                                icon: Icon(
-                                  isFav
-                                      ? Icons.favorite_rounded
-                                      : Icons.favorite_border_rounded,
-                                  color: Colors.white,
-                                ),
-                                tooltip: isFav
-                                    ? 'Remove from favorites'
-                                    : 'Add to favorites',
-                                onPressed: () =>
-                                    playlistProvider.toggleFavorite(track),
-                              ),
-                            ],
+                            ),
                           ),
-                          if (_playbackMode == _PlaybackMode.audio) ...[
-                            const SizedBox(height: 38),
-                            _SeekWaveform(
-                              position: player.position,
-                              duration: player.duration,
-                              bufferedPosition: player.bufferedPosition,
-                              onSeek: player.seekTo,
-                            ),
-                            const SizedBox(height: 34),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _ControlButton(
-                                  icon: Icons.shuffle_rounded,
-                                  active: player.shuffleMode,
-                                  onPressed: player.toggleShuffle,
-                                ),
-                                _ControlButton(
-                                  icon: Icons.skip_previous_rounded,
-                                  onPressed: player.previous,
-                                ),
-                                player.isLoading
-                                    ? const SizedBox(
-                                        width: 62,
-                                        height: 62,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : SizedBox(
-                                        width: 64,
-                                        height: 64,
-                                        child: IconButton(
-                                          style: IconButton.styleFrom(
-                                            backgroundColor: Colors.white,
-                                            foregroundColor: Colors.black,
-                                            shape: const CircleBorder(),
-                                          ),
-                                          icon: Icon(
-                                            player.isPlaying
-                                                ? Icons.pause_rounded
-                                                : Icons.play_arrow_rounded,
-                                            size: 34,
-                                          ),
-                                          onPressed: player.togglePlayPause,
-                                        ),
-                                      ),
-                                _ControlButton(
-                                  icon: Icons.skip_next_rounded,
-                                  onPressed:
-                                      player.currentIndex + 1 <
-                                          player.queue.length
-                                      ? () => player.next()
-                                      : null,
-                                ),
-                                _ControlButton(
-                                  icon: _repeatIconData(player.repeatMode),
-                                  active:
-                                      player.repeatMode !=
-                                      repeat.PlaybackRepeatMode.none,
-                                  onPressed: player.cycleRepeatMode,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                          ] else
-                            const SizedBox(height: 26),
-                          _buildQuickActions(context, player, track),
-                          if (_playbackMode == _PlaybackMode.video)
-                            const SizedBox(height: 36),
-                          if (player.error != null) ...[
-                            const SizedBox(height: 18),
-                            Text(
-                              player.error!,
-                              style: const TextStyle(
-                                color: Colors.redAccent,
-                                fontSize: 12,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                          const Spacer(),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -401,52 +420,57 @@ class _PlayerScreenState extends State<PlayerScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(14),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF171717),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withAlpha(14)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Now playing',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              ...items.map(
-                (item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: item.destructive
-                          ? Colors.redAccent.withAlpha(28)
-                          : Colors.white.withAlpha(12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      item.icon,
-                      color: item.destructive ? Colors.redAccent : Colors.white,
-                    ),
-                  ),
-                  title: Text(
-                    item.title,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(item.subtitle),
-                  enabled: item.onTap != null,
-                  onTap: item.onTap,
+      builder: (ctx) => Material(
+        color: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF171717),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withAlpha(14)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Now playing',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                ...items.map(
+                  (item) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: item.destructive
+                            ? Colors.redAccent.withAlpha(28)
+                            : Colors.white.withAlpha(12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        item.icon,
+                        color: item.destructive
+                            ? Colors.redAccent
+                            : Colors.white,
+                      ),
+                    ),
+                    title: Text(
+                      item.title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(item.subtitle),
+                    enabled: item.onTap != null,
+                    onTap: item.onTap,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -520,59 +544,64 @@ class _PlayerScreenState extends State<PlayerScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(14),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF171717),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withAlpha(14)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Save',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const _SaveActionIcon(icon: Icons.music_note_rounded),
-                title: const Text(
-                  'Save current track',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+      builder: (ctx) => Material(
+        color: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF171717),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withAlpha(14)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Save',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-                subtitle: const Text('Add it to your cached library'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await playlistProvider.saveSingleTrack(track);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('"${track.title}" saved')),
-                  );
-                },
-              ),
-              if (player.queue.isNotEmpty)
+                const SizedBox(height: 12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const _SaveActionIcon(
-                    icon: Icons.playlist_add_check_rounded,
+                    icon: Icons.music_note_rounded,
                   ),
                   title: const Text(
-                    'Create playlist from queue',
+                    'Save current track',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  subtitle: Text('${player.queue.length} tracks, exportable'),
-                  onTap: () {
+                  subtitle: const Text('Add it to your cached library'),
+                  onTap: () async {
                     Navigator.pop(ctx);
-                    _showCreatePlaylistDialog(context, player.queue);
+                    await playlistProvider.saveSingleTrack(track);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('"${track.title}" saved')),
+                    );
                   },
                 ),
-            ],
+                if (player.queue.isNotEmpty)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const _SaveActionIcon(
+                      icon: Icons.playlist_add_check_rounded,
+                    ),
+                    title: const Text(
+                      'Create playlist from queue',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text('${player.queue.length} tracks, exportable'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showCreatePlaylistDialog(context, player.queue);
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -658,50 +687,53 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final options = [15, 30, 60];
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Sleep Timer',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            if (player.isSleepTimerActive)
-              ListTile(
-                leading: const Icon(Icons.timer_off, color: Colors.red),
-                title: const Text('Turn off timer'),
-                onTap: () {
-                  player.cancelSleepTimer();
-                  Navigator.pop(ctx);
-                },
-              ),
-            ...options.map(
-              (minutes) => ListTile(
-                leading: const Icon(Icons.timer),
-                title: Text(
-                  minutes >= 60
-                      ? '${minutes ~/ 60}h ${minutes % 60}m'
-                      : '${minutes}m',
+      builder: (ctx) => Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Sleep Timer',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+              ),
+              if (player.isSleepTimerActive)
+                ListTile(
+                  leading: const Icon(Icons.timer_off, color: Colors.red),
+                  title: const Text('Turn off timer'),
+                  onTap: () {
+                    player.cancelSleepTimer();
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ...options.map(
+                (minutes) => ListTile(
+                  leading: const Icon(Icons.timer),
+                  title: Text(
+                    minutes >= 60
+                        ? '${minutes ~/ 60}h ${minutes % 60}m'
+                        : '${minutes}m',
+                  ),
+                  onTap: () {
+                    player.startSleepTimer(Duration(minutes: minutes));
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Custom...'),
                 onTap: () {
-                  player.startSleepTimer(Duration(minutes: minutes));
                   Navigator.pop(ctx);
+                  _showCustomSleepTimer(context, player);
                 },
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.timer_outlined),
-              title: const Text('Custom...'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showCustomSleepTimer(context, player);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -752,6 +784,49 @@ class _PlayerScreenState extends State<PlayerScreen> {
       case repeat.PlaybackRepeatMode.one:
         return Icons.repeat_one_rounded;
     }
+  }
+}
+
+class _PlayerErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _PlayerErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withAlpha(28),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.redAccent.withAlpha(70)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Colors.redAccent,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              compact.isEmpty ? 'Playback failed' : compact,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -848,32 +923,115 @@ class _InlineVideoPlayer extends StatefulWidget {
 }
 
 class _InlineVideoPlayerState extends State<_InlineVideoPlayer> {
-  late final WebViewController _controller;
-  int _loadProgress = 0;
+  VideoPlayerController? _controller;
+  Future<void>? _initializeFuture;
+  Timer? _ticker;
+  bool _controlsVisible = true;
+  bool _isLoading = true;
   String? _playerError;
 
   @override
   void initState() {
     super.initState();
-    _controller = _createYoutubeController(
-      videoId: widget.track.id,
-      onProgress: (progress) {
-        if (!mounted) return;
-        setState(() => _loadProgress = progress);
-      },
-      onError: (message) {
-        if (!mounted) return;
-        setState(() => _playerError = message);
-      },
-    );
+    _loadVideo();
   }
 
-  void _openFullscreen() {
-    Navigator.of(context).push(
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVideo() async {
+    setState(() {
+      _isLoading = true;
+      _playerError = null;
+    });
+
+    try {
+      final player = context.read<PlayerProvider>();
+      final settings = context.read<SettingsProvider>();
+      final videoUrl = await player.getVideoUrl(
+        widget.track,
+        quality: settings.audioQuality,
+      );
+      if (!mounted) return;
+
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(videoUrl),
+        httpHeaders: const {
+          'User-Agent':
+              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+          'Referer': 'https://www.youtube.com/',
+        },
+      );
+      _controller = controller;
+      _initializeFuture = controller.initialize().then((_) async {
+        await controller.play();
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+      });
+      controller.addListener(_handleControllerTick);
+      _ticker = Timer.periodic(const Duration(milliseconds: 450), (_) {
+        if (mounted) setState(() {});
+      });
+      await _initializeFuture;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _playerError = e.toString();
+      });
+    }
+  }
+
+  void _handleControllerTick() {
+    final controller = _controller;
+    if (controller == null || !mounted) return;
+    final error = controller.value.errorDescription;
+    if (error != null && error != _playerError) {
+      setState(() => _playerError = error);
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      await controller.pause();
+    } else {
+      await controller.play();
+    }
+    if (mounted) setState(() => _controlsVisible = true);
+  }
+
+  Future<void> _openFullscreen() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    final wasPlaying = controller.value.isPlaying;
+    final position = controller.value.position;
+    final videoUrl = controller.dataSource;
+    await controller.pause();
+    if (!mounted) return;
+    final newPosition = await Navigator.of(context).push<Duration>(
       MaterialPageRoute(
-        builder: (_) => _FullscreenYoutubePlayer(track: widget.track),
+        builder: (_) => _FullscreenVideoPlayer(
+          track: widget.track,
+          videoUrl: videoUrl,
+          initialPosition: position,
+          wasPlaying: wasPlaying,
+        ),
       ),
     );
+    if (!mounted) return;
+    if (newPosition != null) {
+      await controller.seekTo(newPosition);
+    }
+    if (wasPlaying) {
+      await controller.play();
+    }
+    if (mounted) setState(() => _controlsVisible = true);
   }
 
   @override
@@ -887,15 +1045,23 @@ class _InlineVideoPlayerState extends State<_InlineVideoPlayer> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              WebViewWidget(controller: _controller),
-              if (_loadProgress < 80 && _playerError == null)
+              _VideoSurface(controller: _controller),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _controlsVisible = !_controlsVisible),
+              ),
+              if (_isLoading && _playerError == null)
                 _VideoLoadingOverlay(imageUrl: widget.track.thumbnailUrl),
               if (_playerError != null) _VideoError(message: _playerError),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: _InlineFullscreenButton(onPressed: _openFullscreen),
-              ),
+              if (_playerError == null && !_isLoading)
+                _CustomVideoControls(
+                  controller: _controller,
+                  visible: _controlsVisible,
+                  compact: true,
+                  onPlayPause: _togglePlayPause,
+                  onFullscreen: _openFullscreen,
+                ),
             ],
           ),
         ),
@@ -904,19 +1070,29 @@ class _InlineVideoPlayerState extends State<_InlineVideoPlayer> {
   }
 }
 
-class _FullscreenYoutubePlayer extends StatefulWidget {
+class _FullscreenVideoPlayer extends StatefulWidget {
   final Track track;
+  final String videoUrl;
+  final Duration initialPosition;
+  final bool wasPlaying;
 
-  const _FullscreenYoutubePlayer({required this.track});
+  const _FullscreenVideoPlayer({
+    required this.track,
+    required this.videoUrl,
+    required this.initialPosition,
+    required this.wasPlaying,
+  });
 
   @override
-  State<_FullscreenYoutubePlayer> createState() =>
-      _FullscreenYoutubePlayerState();
+  State<_FullscreenVideoPlayer> createState() => _FullscreenVideoPlayerState();
 }
 
-class _FullscreenYoutubePlayerState extends State<_FullscreenYoutubePlayer> {
-  late final WebViewController _controller;
-  int _loadProgress = 0;
+class _FullscreenVideoPlayerState extends State<_FullscreenVideoPlayer> {
+  late final VideoPlayerController _controller;
+  late final Future<void> _initializeFuture;
+  Timer? _ticker;
+  bool _controlsVisible = true;
+  bool _isLoading = true;
   String? _playerError;
 
   @override
@@ -927,124 +1103,288 @@ class _FullscreenYoutubePlayerState extends State<_FullscreenYoutubePlayer> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _controller = _createYoutubeController(
-      videoId: widget.track.id,
-      onProgress: (progress) {
-        if (!mounted) return;
-        setState(() => _loadProgress = progress);
-      },
-      onError: (message) {
-        if (!mounted) return;
-        setState(() => _playerError = message);
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.videoUrl),
+      httpHeaders: const {
+        'User-Agent':
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+        'Referer': 'https://www.youtube.com/',
       },
     );
+    _controller.addListener(_handleControllerTick);
+    _initializeFuture = _controller
+        .initialize()
+        .then((_) async {
+          await _controller.seekTo(widget.initialPosition);
+          if (widget.wasPlaying) {
+            await _controller.play();
+          }
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+        })
+        .catchError((e) {
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _playerError = e.toString();
+          });
+        });
+    _ticker = Timer.periodic(const Duration(milliseconds: 450), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
+    _controller.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     super.dispose();
+  }
+
+  void _handleControllerTick() {
+    final error = _controller.value.errorDescription;
+    if (error != null && error != _playerError && mounted) {
+      setState(() => _playerError = error);
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    if (!_controller.value.isInitialized) return;
+    if (_controller.value.isPlaying) {
+      await _controller.pause();
+    } else {
+      await _controller.play();
+    }
+    if (mounted) setState(() => _controlsVisible = true);
+  }
+
+  void _close() {
+    Navigator.pop(context, _controller.value.position);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_loadProgress < 80 && _playerError == null)
-            _VideoLoadingOverlay(imageUrl: widget.track.thumbnailUrl),
-          if (_playerError != null) _VideoError(message: _playerError),
-          Positioned(
-            top: 12,
-            left: 12,
-            child: SafeArea(
-              child: IconButton(
-                tooltip: 'Close',
-                onPressed: () => Navigator.pop(context),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.black.withAlpha(150),
-                  foregroundColor: Colors.white,
-                  fixedSize: const Size(42, 42),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+      body: FutureBuilder<void>(
+        future: _initializeFuture,
+        builder: (context, _) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(child: _VideoSurface(controller: _controller)),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _controlsVisible = !_controlsVisible),
+              ),
+              if (_isLoading && _playerError == null)
+                _VideoLoadingOverlay(imageUrl: widget.track.thumbnailUrl),
+              if (_playerError != null) _VideoError(message: _playerError),
+              if (_playerError == null && !_isLoading)
+                _CustomVideoControls(
+                  controller: _controller,
+                  visible: _controlsVisible,
+                  compact: false,
+                  onPlayPause: _togglePlayPause,
+                  onFullscreen: _close,
+                ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: SafeArea(
+                  child: IconButton(
+                    tooltip: 'Close',
+                    onPressed: _close,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withAlpha(150),
+                      foregroundColor: Colors.white,
+                      fixedSize: const Size(42, 42),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.close_rounded),
                   ),
                 ),
-                icon: const Icon(Icons.close_rounded),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-WebViewController _createYoutubeController({
-  required String videoId,
-  required ValueChanged<int> onProgress,
-  required ValueChanged<String> onError,
-}) {
-  late final PlatformWebViewControllerCreationParams params;
-  if (WebViewPlatform.instance is WebKitWebViewPlatform) {
-    params = WebKitWebViewControllerCreationParams(
-      allowsInlineMediaPlayback: true,
-      mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
-    );
-  } else {
-    params = const PlatformWebViewControllerCreationParams();
-  }
-
-  final controller = WebViewController.fromPlatformCreationParams(params)
-    ..setJavaScriptMode(JavaScriptMode.unrestricted)
-    ..setBackgroundColor(Colors.black)
-    ..setNavigationDelegate(
-      NavigationDelegate(
-        onProgress: onProgress,
-        onPageStarted: (_) => onProgress(0),
-        onPageFinished: (_) => onProgress(100),
-        onWebResourceError: (error) {
-          if (error.isForMainFrame == false) return;
-          onError(error.description);
+            ],
+          );
         },
       ),
-    )
-    ..loadRequest(_youtubeWatchUri(videoId));
-
-  if (controller.platform is AndroidWebViewController) {
-    (controller.platform as AndroidWebViewController)
-        .setMediaPlaybackRequiresUserGesture(false);
+    );
   }
-
-  return controller;
 }
 
-Uri _youtubeWatchUri(String videoId) => Uri.https('m.youtube.com', '/watch', {
-  'v': videoId,
-  'app': 'm',
-  'persist_app': '1',
-});
+class _VideoSurface extends StatelessWidget {
+  final VideoPlayerController? controller;
 
-class _InlineFullscreenButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _InlineFullscreenButton({required this.onPressed});
+  const _VideoSurface({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Fullscreen',
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.black.withAlpha(150),
-        foregroundColor: Colors.white,
-        fixedSize: const Size(38, 38),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    final videoController = controller;
+    if (videoController == null || !videoController.value.isInitialized) {
+      return const SizedBox.expand();
+    }
+    return AspectRatio(
+      aspectRatio: videoController.value.aspectRatio == 0
+          ? 16 / 9
+          : videoController.value.aspectRatio,
+      child: VideoPlayer(videoController),
+    );
+  }
+}
+
+class _CustomVideoControls extends StatelessWidget {
+  final VideoPlayerController? controller;
+  final bool visible;
+  final bool compact;
+  final VoidCallback onPlayPause;
+  final VoidCallback onFullscreen;
+
+  const _CustomVideoControls({
+    required this.controller,
+    required this.visible,
+    required this.compact,
+    required this.onPlayPause,
+    required this.onFullscreen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videoController = controller;
+    if (videoController == null || !videoController.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    final value = videoController.value;
+    final position = value.position;
+    final duration = value.duration;
+    final progress = duration.inMilliseconds == 0
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withAlpha(compact ? 80 : 120),
+                Colors.transparent,
+                Colors.black.withAlpha(compact ? 190 : 220),
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: IconButton(
+                  tooltip: value.isPlaying ? 'Pause' : 'Play',
+                  onPressed: onPlayPause,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withAlpha(235),
+                    foregroundColor: Colors.black,
+                    fixedSize: Size(compact ? 54 : 68, compact ? 54 : 68),
+                    shape: const CircleBorder(),
+                  ),
+                  icon: Icon(
+                    value.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: compact ? 30 : 40,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: compact ? 10 : 22,
+                right: compact ? 10 : 22,
+                child: IconButton(
+                  tooltip: compact ? 'Fullscreen' : 'Exit fullscreen',
+                  onPressed: onFullscreen,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withAlpha(150),
+                    foregroundColor: Colors.white,
+                    fixedSize: Size(compact ? 38 : 44, compact ? 38 : 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: Icon(
+                    compact
+                        ? Icons.fullscreen_rounded
+                        : Icons.fullscreen_exit_rounded,
+                    size: compact ? 22 : 26,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: compact ? 12 : 26,
+                right: compact ? 12 : 26,
+                bottom: compact ? 10 : 22,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: compact ? 3 : 4,
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: compact ? 5 : 7,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 14,
+                        ),
+                        activeTrackColor: Colors.white,
+                        inactiveTrackColor: Colors.white24,
+                        thumbColor: Colors.white,
+                      ),
+                      child: Slider(
+                        value: progress,
+                        onChanged: (value) {
+                          final target = Duration(
+                            milliseconds: (duration.inMilliseconds * value)
+                                .round(),
+                          );
+                          videoController.seekTo(target);
+                        },
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          formatDuration(position),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: compact ? 10 : 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          formatDuration(duration),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: compact ? 10 : 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      icon: const Icon(Icons.fullscreen_rounded, size: 22),
     );
   }
 }

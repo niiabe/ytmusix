@@ -13,13 +13,15 @@ class ChartProvider extends ChangeNotifier {
 
   List<ChartItem> _recommendedSongs = [];
   List<ChartItem> _hotAlbums = [];
-  List<ChartItem> _billboard200 = [];
+  List<ChartItem> _appleTopSongs = [];
+  AppleTopSongsScope _appleTopSongsScope = AppleTopSongsScope.global;
   final Set<String> _loadingKeys = {};
   String? _error;
 
   List<ChartItem> get recommendedSongs => _recommendedSongs;
   List<ChartItem> get hotAlbums => _hotAlbums;
-  List<ChartItem> get billboard200 => _billboard200;
+  List<ChartItem> get appleTopSongs => _appleTopSongs;
+  AppleTopSongsScope get appleTopSongsScope => _appleTopSongsScope;
   String? get error => _error;
 
   bool isLoading(String key) => _loadingKeys.contains(key);
@@ -28,7 +30,7 @@ class ChartProvider extends ChangeNotifier {
     await Future.wait([
       loadRecommendedSongs(force: force),
       loadHotAlbums(force: force),
-      loadBillboard200(force: force),
+      loadAppleTopSongs(force: force),
     ]);
   }
 
@@ -48,11 +50,18 @@ class ChartProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> loadBillboard200({bool force = false}) {
+  Future<void> loadAppleTopSongs({
+    AppleTopSongsScope? scope,
+    bool force = false,
+  }) {
+    if (scope != null) {
+      _appleTopSongsScope = scope;
+    }
+    final selectedScope = _appleTopSongsScope;
     return _load(
-      ChartService.billboardAlbumsKey,
-      () => _chartService.getBillboard200(force: force),
-      (items) => _billboard200 = items,
+      ChartService.appleTopSongsKey(selectedScope),
+      () => _chartService.getAppleTopSongs(scope: selectedScope, force: force),
+      (items) => _appleTopSongs = items,
     );
   }
 

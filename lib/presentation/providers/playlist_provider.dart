@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/playlist_sort_mode.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
@@ -21,6 +22,10 @@ class PlaylistProvider extends ChangeNotifier {
   Set<String> _favoriteIds = {};
   final Map<String, List<Track>> _homeFeeds = {};
   final Set<String> _loadingHomeFeeds = {};
+  final Map<String, List<Track>> _silentSearchCache = {};
+
+  static const _silentSearchCachePrefix = 'silent_search_cache_v1';
+  static const _silentSearchCacheMaxAge = Duration(days: 7);
 
   PlaylistSortMode get sortMode => _sortMode;
 
@@ -452,8 +457,13 @@ class PlaylistProvider extends ChangeNotifier {
   }
 
   Future<List<Track>> searchSilently(String query) async {
+    final cached = await _getCachedSilentSearch(query);
+    if (cached != null) return cached;
+
     try {
-      return await _repository.search(query);
+      final results = await _repository.search(query);
+      await _cacheSilentSearch(query, results);
+      return results;
     } catch (e) {
       dev.log(
         'Silent search failed for "$query": $e',
@@ -461,6 +471,92 @@ class PlaylistProvider extends ChangeNotifier {
       );
       return [];
     }
+  }
+
+  Future<List<Track>?> _getCachedSilentSearch(String query) async {
+    final normalized = _normalizeSearchQuery(query);
+    if (normalized.isEmpty) return const [];
+    final inMemory = _silentSearchCache[normalized];
+    if (inMemory != null) return inMemory;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = prefs.getString(_silentSearchCacheKey(normalized));
+      if (payload == null) return null;
+
+      final json = jsonDecode(payload) as Map<String, dynamic>;
+      final timestamp = DateTime.tryParse(json['timestamp'] as String? ?? '');
+      if (timestamp == null ||
+          DateTime.now().difference(timestamp) > _silentSearchCacheMaxAge) {
+        await prefs.remove(_silentSearchCacheKey(normalized));
+        return null;
+      }
+
+      final tracks = (json['tracks'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_trackFromMap)
+          .toList();
+      _silentSearchCache[normalized] = tracks;
+      return tracks;
+    } catch (e) {
+      dev.log(
+        'Failed to read silent search cache for "$query": $e',
+        name: 'PlaylistProvider',
+      );
+      return null;
+    }
+  }
+
+  Future<void> _cacheSilentSearch(String query, List<Track> tracks) async {
+    final normalized = _normalizeSearchQuery(query);
+    if (normalized.isEmpty) return;
+    _silentSearchCache[normalized] = tracks;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _silentSearchCacheKey(normalized),
+        jsonEncode({
+          'timestamp': DateTime.now().toIso8601String(),
+          'tracks': tracks.map(_trackToMap).toList(),
+        }),
+      );
+    } catch (e) {
+      dev.log(
+        'Failed to write silent search cache for "$query": $e',
+        name: 'PlaylistProvider',
+      );
+    }
+  }
+
+  String _normalizeSearchQuery(String query) {
+    return query.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  }
+
+  String _silentSearchCacheKey(String normalizedQuery) {
+    return '$_silentSearchCachePrefix:${base64Url.encode(utf8.encode(normalizedQuery))}';
+  }
+
+  Map<String, dynamic> _trackToMap(Track track) {
+    return {
+      'id': track.id,
+      'title': track.title,
+      'thumbnailUrl': track.thumbnailUrl,
+      'durationSeconds': track.duration.inSeconds,
+      'author': track.author,
+      'index': track.index,
+    };
+  }
+
+  Track _trackFromMap(Map<String, dynamic> map) {
+    return Track(
+      id: map['id'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      thumbnailUrl: map['thumbnailUrl'] as String?,
+      duration: Duration(seconds: map['durationSeconds'] as int? ?? 0),
+      author: map['author'] as String?,
+      index: map['index'] as int? ?? 0,
+    );
   }
 
   Future<void> savePlaylistFromTracks({

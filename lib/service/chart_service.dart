@@ -5,6 +5,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/entities/chart_item.dart';
 
+enum AppleTopSongsScope {
+  global('Global', 'us'),
+  ghana('Ghana', 'gh'),
+  africa('Africa', 'ng');
+
+  final String label;
+  final String storefront;
+
+  const AppleTopSongsScope(this.label, this.storefront);
+}
+
 class ChartService {
   ChartService({http.Client? client, DateTime Function()? now})
     : _client = client ?? http.Client(),
@@ -18,6 +29,8 @@ class ChartService {
       'https://rss.marketingtools.apple.com/api/v2/gh/music/most-played/100/songs.json';
   static const _appleGhanaAlbumsUrl =
       'https://rss.marketingtools.apple.com/api/v2/gh/music/most-played/100/albums.json';
+  static const _appleTopSongsBaseUrl =
+      'https://rss.marketingtools.apple.com/api/v2';
   static const _billboard200Url =
       'https://www.billboard.com/charts/billboard-200/';
 
@@ -50,6 +63,23 @@ class ChartService {
     );
   }
 
+  Future<List<ChartItem>> getAppleTopSongs({
+    AppleTopSongsScope scope = AppleTopSongsScope.global,
+    bool force = false,
+  }) {
+    return _getCachedChart(
+      cacheKey: appleTopSongsKey(scope),
+      maxAge: const Duration(hours: 24),
+      force: force,
+      fetch: () => _fetchAppleChart(
+        url:
+            '$_appleTopSongsBaseUrl/${scope.storefront}/music/most-played/100/songs.json',
+        sourceName: 'Apple Music Top 100 ${scope.label}',
+        kind: ChartItemKind.song,
+      ),
+    );
+  }
+
   Future<List<ChartItem>> getBillboard200({bool force = false}) {
     return _getCachedChart(
       cacheKey: billboardAlbumsKey,
@@ -59,7 +89,19 @@ class ChartService {
     );
   }
 
-  Future<List<ChartItem>> getAppleAlbumSongs(ChartItem album) async {
+  Future<List<ChartItem>> getAppleAlbumSongs(
+    ChartItem album, {
+    bool force = false,
+  }) {
+    return _getCachedChart(
+      cacheKey: appleAlbumSongsKey(album.id),
+      maxAge: const Duration(days: 7),
+      force: force,
+      fetch: () => _fetchAppleAlbumSongs(album),
+    );
+  }
+
+  Future<List<ChartItem>> _fetchAppleAlbumSongs(ChartItem album) async {
     final response = await _client.get(
       Uri.parse(
         'https://itunes.apple.com/lookup?id=${album.id}&entity=song&country=gh',
@@ -245,4 +287,8 @@ class ChartService {
   static String _dataKey(String cacheKey) => 'chart_cache_${cacheKey}_data';
   static String _timestampKey(String cacheKey) =>
       'chart_cache_${cacheKey}_timestamp';
+  static String appleTopSongsKey(AppleTopSongsScope scope) =>
+      'apple_top_100_${scope.name}_songs';
+  static String appleAlbumSongsKey(String albumId) =>
+      'apple_album_${albumId}_songs';
 }

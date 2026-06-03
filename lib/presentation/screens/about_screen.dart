@@ -104,8 +104,8 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
-      'Next',
-      'Added autoplay recommendations, Apple Music Ghana chart shelves, Billboard 200 albums, and refreshed About details.',
+      '1.2.0',
+      'Added Apple Music chart shelves with scoped Top 100 songs, album detail playback, recommendation autoplay, cached chart/search lookups, a custom video player, and refreshed About details.',
     ),
     (
       '1.1.0',

@@ -56,28 +56,47 @@ void main() {
     expect(requestCount, 2);
   });
 
-  test('parses Billboard 200 album rows', () {
-    final items = ChartService.parseBillboard200('''
-      <ul class="o-chart-results-list-row //" data-detail-target="1">
-        <h3 id="title-of-a-story" class="c-title">MUSIC</h3>
-        <span class="c-label a-no-trucate">
-          <a href="/artist/playboi-carti/">Playboi Carti</a>
-        </span>
-        <img data-lazy-src="https://charts-static.billboard.com/img/album.jpg">
-      </ul>
-    ''');
+  test(
+    'loads scoped Apple Top 100 songs and caches them for 24 hours',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      var now = DateTime(2026, 6, 3, 9);
+      final requestedStorefronts = <String>[];
+      final service = ChartService(
+        now: () => now,
+        client: MockClient((request) async {
+          requestedStorefronts.add(request.url.pathSegments[2]);
+          return http.Response(
+            _applePayload('Top ${requestedStorefronts.length}'),
+            200,
+          );
+        }),
+      );
 
-    expect(items, hasLength(1));
-    expect(items.single.rank, 1);
-    expect(items.single.title, 'MUSIC');
-    expect(items.single.artist, 'Playboi Carti');
-    expect(items.single.kind, ChartItemKind.album);
-    expect(items.single.sourceName, 'US Billboard 200');
-  });
+      final global = await service.getAppleTopSongs();
+      final globalCached = await service.getAppleTopSongs();
+      final ghana = await service.getAppleTopSongs(
+        scope: AppleTopSongsScope.ghana,
+      );
+      now = now.add(const Duration(hours: 25));
+      final globalRefreshed = await service.getAppleTopSongs();
+
+      expect(global.single.title, 'Top 1');
+      expect(globalCached.single.title, 'Top 1');
+      expect(ghana.single.title, 'Top 2');
+      expect(globalRefreshed.single.title, 'Top 3');
+      expect(requestedStorefronts, ['us', 'gh', 'us']);
+      expect(global.single.kind, ChartItemKind.song);
+      expect(global.single.sourceName, 'Apple Music Top 100 Global');
+    },
+  );
 
   test('loads Apple album songs for hot album playback', () async {
+    SharedPreferences.setMockInitialValues({});
+    var requestCount = 0;
     final service = ChartService(
       client: MockClient((request) async {
+        requestCount++;
         expect(request.url.host, 'itunes.apple.com');
         expect(request.url.queryParameters['id'], '456');
         return http.Response(_appleLookupPayload(), 200);
@@ -95,12 +114,15 @@ void main() {
     );
 
     final songs = await service.getAppleAlbumSongs(album);
+    final cachedSongs = await service.getAppleAlbumSongs(album);
 
     expect(songs, hasLength(2));
+    expect(cachedSongs, hasLength(2));
     expect(songs.first.title, 'First Song');
     expect(songs.first.artist, 'Album Artist');
     expect(songs.first.kind, ChartItemKind.song);
     expect(songs.first.artworkUrl, contains('1000x1000bb'));
+    expect(requestCount, 1);
   });
 }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'package:dart_ytmusic_api/dart_ytmusic_api.dart' as ytmusic;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart'
     hide Playlist, Video;
 import '../../models/playlist_model.dart';
@@ -12,6 +13,7 @@ class YoutubeRemoteDataSource {
 
   final AuthService _authService;
   late final YoutubeExplode _yt;
+  late final ytmusic.YTMusic _ytMusic;
 
   YoutubeRemoteDataSource({AuthService? authService})
     : _authService = authService ?? AuthService();
@@ -21,6 +23,17 @@ class YoutubeRemoteDataSource {
     final inner = AuthenticatedClient(cookies: cookies);
     final ytHttp = YoutubeHttpClient(inner);
     _yt = YoutubeExplode(httpClient: ytHttp);
+    _ytMusic = ytmusic.YTMusic();
+    try {
+      await _ytMusic
+          .initialize(cookies: cookies, gl: 'GH', hl: 'en')
+          .timeout(_timeout);
+    } catch (e) {
+      dev.log(
+        'YouTube Music API initialization failed, using YouTube fallback: $e',
+        name: 'YoutubeRemoteDataSource',
+      );
+    }
   }
 
   Future<PlaylistModel> getPlaylist(String playlistId) async {
@@ -122,6 +135,21 @@ class YoutubeRemoteDataSource {
     String videoId, {
     int limit = 20,
   }) async {
+    try {
+      final upNext = await _ytMusic.getUpNexts(videoId).timeout(_timeout);
+      final tracks = upNext
+          .where((item) => item.videoId.isNotEmpty)
+          .take(limit)
+          .map(_trackFromUpNext)
+          .toList();
+      if (tracks.isNotEmpty) return _withIndexes(tracks);
+    } catch (e) {
+      dev.log(
+        'YouTube Music up next failed for $videoId, using related videos: $e',
+        name: 'YoutubeRemoteDataSource',
+      );
+    }
+
     final video = await _yt.videos.get(videoId).timeout(_timeout);
     final related = await _yt.videos.getRelatedVideos(video).timeout(_timeout);
     if (related == null || related.isEmpty) return <TrackModel>[];
@@ -274,6 +302,30 @@ class YoutubeRemoteDataSource {
   }
 
   Future<List<TrackModel>> search(String query) async {
+    try {
+      final songs = await _ytMusic.searchSongs(query).timeout(_timeout);
+      final videos = await _ytMusic.searchVideos(query).timeout(_timeout);
+      final seen = <String>{};
+      final tracks = <TrackModel>[];
+
+      for (final song in songs) {
+        if (song.videoId.isEmpty || !seen.add(song.videoId)) continue;
+        tracks.add(_trackFromSong(song, tracks.length));
+      }
+
+      for (final video in videos) {
+        if (video.videoId.isEmpty || !seen.add(video.videoId)) continue;
+        tracks.add(_trackFromVideo(video, tracks.length));
+      }
+
+      if (tracks.isNotEmpty) return tracks;
+    } catch (e) {
+      dev.log(
+        'YouTube Music search failed for "$query", using YouTube fallback: $e',
+        name: 'YoutubeRemoteDataSource',
+      );
+    }
+
     final results = await _yt.search.search(query);
     final tracks = <TrackModel>[];
     for (var i = 0; i < results.length; i++) {
@@ -290,6 +342,60 @@ class YoutubeRemoteDataSource {
       );
     }
     return tracks;
+  }
+
+  List<TrackModel> _withIndexes(List<TrackModel> tracks) {
+    return [
+      for (var i = 0; i < tracks.length; i++)
+        TrackModel(
+          id: tracks[i].id,
+          title: tracks[i].title,
+          author: tracks[i].author,
+          durationSeconds: tracks[i].durationSeconds,
+          thumbnailUrl: tracks[i].thumbnailUrl,
+          index: i,
+        ),
+    ];
+  }
+
+  TrackModel _trackFromSong(ytmusic.SongDetailed song, int index) {
+    return TrackModel(
+      id: song.videoId,
+      title: song.name,
+      author: song.artist.name,
+      durationSeconds: song.duration ?? 0,
+      thumbnailUrl: _bestThumbnail(song.thumbnails),
+      index: index,
+    );
+  }
+
+  TrackModel _trackFromVideo(ytmusic.VideoDetailed video, int index) {
+    return TrackModel(
+      id: video.videoId,
+      title: video.name,
+      author: video.artist.name,
+      durationSeconds: video.duration ?? 0,
+      thumbnailUrl: _bestThumbnail(video.thumbnails),
+      index: index,
+    );
+  }
+
+  TrackModel _trackFromUpNext(ytmusic.UpNextsDetails item) {
+    return TrackModel(
+      id: item.videoId,
+      title: item.title,
+      author: item.artists.name,
+      durationSeconds: item.duration,
+      thumbnailUrl: _bestThumbnail(item.thumbnails),
+      index: 0,
+    );
+  }
+
+  String? _bestThumbnail(List<ytmusic.ThumbnailFull> thumbnails) {
+    if (thumbnails.isEmpty) return null;
+    final sorted = List<ytmusic.ThumbnailFull>.from(thumbnails)
+      ..sort((a, b) => (a.width * a.height).compareTo(b.width * b.height));
+    return sorted.last.url;
   }
 
   void dispose() {
