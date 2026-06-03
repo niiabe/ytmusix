@@ -3,6 +3,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:http/http.dart' as http;
 import '../core/utils/network_utils.dart';
+import '../domain/repositories/audio_repository.dart';
+import '../domain/entities/video.dart';
 import 'auth_service.dart';
 
 class MusicAudioHandler extends BaseAudioHandler {
@@ -10,7 +12,7 @@ class MusicAudioHandler extends BaseAudioHandler {
     audioLoadConfiguration: AudioLoadConfiguration(
       darwinLoadControl: DarwinLoadControl(
         preferredForwardBufferDuration: const Duration(seconds: 3),
-        automaticallyWaitsToMinimizeStalling: false,
+        automaticallyWaitsToMinimizeStalling: true,
       ),
       androidLoadControl: AndroidLoadControl(
         minBufferDuration: const Duration(seconds: 3),
@@ -21,6 +23,11 @@ class MusicAudioHandler extends BaseAudioHandler {
     ),
   );
   final AuthService _authService = AuthService();
+  AudioRepository? _audioRepository;
+
+  void setRepository(AudioRepository repository) {
+    _audioRepository = repository;
+  }
 
   final skipNextRequested = StreamController<void>.broadcast();
   final skipPreviousRequested = StreamController<void>.broadcast();
@@ -46,6 +53,7 @@ class MusicAudioHandler extends BaseAudioHandler {
     processingState: AudioProcessingState.idle,
     playing: false,
     updatePosition: Duration.zero,
+    speed: 0.0,
   );
 
   var _queue = <MediaItem>[];
@@ -64,6 +72,7 @@ class MusicAudioHandler extends BaseAudioHandler {
       playbackState.add(
         current.copyWith(
           updatePosition: pos,
+          speed: _player.playing ? 1.0 : 0.0,
           controls: _controls,
           systemActions: _systemActions,
           androidCompactActionIndices: [1, 0, 3],
@@ -85,6 +94,7 @@ class MusicAudioHandler extends BaseAudioHandler {
     playbackState.add(
       current.copyWith(
         playing: state.playing,
+        speed: state.playing ? 1.0 : 0.0,
         processingState: _convertState(state.processingState),
         controls: _controls,
         systemActions: _systemActions,
@@ -94,10 +104,12 @@ class MusicAudioHandler extends BaseAudioHandler {
   }
 
   void _onProcessingState(ProcessingState state) {
-    if (state == ProcessingState.completed &&
-        _queue.isEmpty &&
-        _currentIndex == null) {
-      stop();
+    if (state == ProcessingState.completed) {
+      if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
+        _playNext();
+      } else {
+        stop();
+      }
     }
   }
 
@@ -198,6 +210,7 @@ class MusicAudioHandler extends BaseAudioHandler {
         controls: _controls,
         systemActions: _systemActions,
         androidCompactActionIndices: [1, 0, 3],
+        speed: 0.0,
       ),
     );
   }
@@ -205,15 +218,70 @@ class MusicAudioHandler extends BaseAudioHandler {
   @override
   Future<void> skipToNext() async {
     if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
-      skipNextRequested.add(null);
+      await _playAtIndex(_currentIndex! + 1);
     }
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_currentIndex != null && _currentIndex! > 0) {
-      skipPreviousRequested.add(null);
+      await _playAtIndex(_currentIndex! - 1);
     }
+  }
+
+  Future<void> _playNext() async {
+    if (_currentIndex != null && _currentIndex! + 1 < _queue.length) {
+      await _playAtIndex(_currentIndex! + 1);
+    }
+  }
+
+  Future<void> _playAtIndex(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    _currentIndex = index;
+    final item = _queue[index];
+    mediaItem.add(item);
+
+    String? url;
+    if (_audioRepository != null) {
+      try {
+        final track = Track(
+          id: item.id,
+          title: item.title,
+          author: item.artist,
+          thumbnailUrl: item.artUri?.toString(),
+          duration: item.duration ?? Duration.zero,
+        );
+        url = await _audioRepository!.getAudioUrl(track);
+      } catch (_) {}
+    }
+
+    if (url == null || url.isEmpty) return;
+
+    final AudioSource source;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      final client = http.Client();
+      try {
+        final headers = await _getHeaders();
+        final resolvedUrl = await NetworkUtils.resolveRedirects(
+          client,
+          url,
+          headers: headers,
+        );
+        source = AudioSource.uri(
+          Uri.parse(resolvedUrl),
+          headers: headers,
+          tag: item,
+        );
+      } finally {
+        client.close();
+      }
+    } else {
+      source = AudioSource.file(url, tag: item);
+    }
+
+    await _player.stop();
+    await _player.setAudioSource(source);
+    unawaited(_player.play());
   }
 
   @override

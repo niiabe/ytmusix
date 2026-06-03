@@ -21,6 +21,9 @@ class PlaylistProvider extends ChangeNotifier {
   String? _error;
   PlaylistSortMode _sortMode = PlaylistSortMode.dateAdded;
   Set<String> _favoriteIds = {};
+  List<Track> _favoriteTracks = [];
+  List<Playlist> _favoriteCollections = [];
+  Set<String> _favoriteCollectionIds = {};
   final Map<String, List<Track>> _homeFeeds = {};
   final Set<String> _loadingHomeFeeds = {};
   final Map<String, List<Track>> _silentSearchCache = {};
@@ -38,6 +41,9 @@ class PlaylistProvider extends ChangeNotifier {
   List<String> get searchHistory => List.unmodifiable(_searchHistory);
   CategorizedSearchResults? get categorizedResults => _categorizedResults;
   bool get isCategorizedSearching => _isCategorizedSearching;
+  List<Track> get favoriteTracks => _favoriteTracks;
+  List<Playlist> get favoriteCollections => _favoriteCollections;
+  Set<String> get favoriteCollectionIds => _favoriteCollectionIds;
 
   List<Playlist> get playlists {
     final sorted = List<Playlist>.from(_playlists);
@@ -152,21 +158,28 @@ class PlaylistProvider extends ChangeNotifier {
 
   bool isFavorite(String trackId) => _favoriteIds.contains(trackId);
 
-  Future<void> loadFavoriteIds() async {
+  Future<void> loadFavoriteTracks() async {
     try {
-      _favoriteIds = await _repository.getFavoriteIds();
+      _favoriteTracks = await _repository.getFavoriteTracks();
+      _favoriteIds = _favoriteTracks.map((t) => t.id).toSet();
       notifyListeners();
     } catch (e) {
-      dev.log('Failed to load favorite IDs: $e', name: 'PlaylistProvider');
+      dev.log('Failed to load favorite tracks: $e', name: 'PlaylistProvider');
     }
+  }
+
+  Future<void> loadFavoriteIds() async {
+    await loadFavoriteTracks();
   }
 
   Future<void> toggleFavorite(Track track) async {
     final wasFavorite = _favoriteIds.contains(track.id);
     if (wasFavorite) {
       _favoriteIds.remove(track.id);
+      _favoriteTracks.removeWhere((t) => t.id == track.id);
     } else {
       _favoriteIds.add(track.id);
+      _favoriteTracks.insert(0, track);
     }
     notifyListeners();
     try {
@@ -174,10 +187,61 @@ class PlaylistProvider extends ChangeNotifier {
     } catch (e) {
       if (wasFavorite) {
         _favoriteIds.add(track.id);
+        _favoriteTracks.insert(0, track);
       } else {
         _favoriteIds.remove(track.id);
+        _favoriteTracks.removeWhere((t) => t.id == track.id);
       }
       notifyListeners();
+    }
+  }
+
+  bool isCollectionFavorite(String collectionId) => _favoriteCollectionIds.contains(collectionId);
+
+  Future<void> loadFavoriteCollections() async {
+    try {
+      _favoriteCollections = await _repository.getFavoriteCollections();
+      _favoriteCollectionIds = _favoriteCollections.map((c) => c.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      dev.log('Failed to load favorite collections: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type) async {
+    final wasFavorite = _favoriteCollectionIds.contains(playlist.id);
+    final updatedPlaylist = Playlist(
+      id: playlist.id,
+      title: playlist.title,
+      description: playlist.description,
+      thumbnailUrl: playlist.thumbnailUrl,
+      author: playlist.author,
+      videoCount: playlist.videoCount,
+      tracks: playlist.tracks,
+      type: type,
+    );
+
+    if (wasFavorite) {
+      _favoriteCollectionIds.remove(playlist.id);
+      _favoriteCollections.removeWhere((c) => c.id == playlist.id);
+    } else {
+      _favoriteCollectionIds.add(playlist.id);
+      _favoriteCollections.insert(0, updatedPlaylist);
+    }
+    notifyListeners();
+
+    try {
+      await _repository.toggleFavoriteCollection(playlist, type);
+    } catch (e) {
+      if (wasFavorite) {
+        _favoriteCollectionIds.add(playlist.id);
+        _favoriteCollections.insert(0, updatedPlaylist);
+      } else {
+        _favoriteCollectionIds.remove(playlist.id);
+        _favoriteCollections.removeWhere((c) => c.id == playlist.id);
+      }
+      notifyListeners();
+      dev.log('Failed to toggle favorite collection: $e', name: 'PlaylistProvider');
     }
   }
 

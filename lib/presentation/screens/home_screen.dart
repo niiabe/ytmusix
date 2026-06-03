@@ -16,6 +16,7 @@ import '../widgets/pixel_logo.dart';
 import '../widgets/now_playing_fab.dart';
 import '../widgets/track_action_sheet.dart';
 import 'playlist_screen.dart';
+import 'album_screen.dart';
 import 'player_screen.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
@@ -55,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlaylistProvider>().loadSavedPlaylists();
       context.read<PlaylistProvider>().loadFavoriteIds();
+      context.read<PlaylistProvider>().loadFavoriteCollections();
       context.read<ChartProvider>().loadCharts();
       context.read<PlayerProvider>().loadRecentlyPlayed();
       _downloadCompletionSub ??= context
@@ -149,15 +151,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
-    final isNowPlaying = player.currentTrack != null;
-
     return Scaffold(
-      floatingActionButton: isNowPlaying
-          ? NowPlayingFab(
-              track: player.currentTrack!,
-              isPlaying: player.isPlaying,
-            )
-          : null,
+      floatingActionButton: NowPlayingFab(
+        track: player.currentTrack,
+        isPlaying: player.isPlaying,
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -415,6 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return Future.wait([
               provider.loadSavedPlaylists(),
+              provider.loadFavoriteCollections(),
               chartProvider.loadCharts(force: true),
             ]);
           },
@@ -423,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
               20,
               8,
               20,
-              playerProvider.currentTrack == null ? 28 : 146,
+              146,
             ),
             children: [
               const Text(
@@ -489,7 +488,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   playerProvider,
                   feedKey,
                 )
-              else if (_isPlaylistTab || _isFavoritesTab)
+              else if (_isFavoritesTab)
+                _buildPlaylistShelf(
+                  context,
+                  provider.favoriteCollections,
+                  playerProvider,
+                  downloadProvider,
+                )
+              else if (_isPlaylistTab)
                 _buildPlaylistShelf(
                   context,
                   _filteredPlaylists(provider),
@@ -503,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildTopHits(
                   context,
                   _filteredPlaylists(provider),
-                  feedTracks,
+                  _isFavoritesTab ? provider.favoriteTracks : feedTracks,
                   playerProvider,
                   _isFavoritesTab ? provider.favoriteIds : null,
                 ),
@@ -640,6 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           final playlist = playlists[index];
+          final provider = context.read<PlaylistProvider>();
           final isCurrent = playerProvider.currentPlaylistId == playlist.id;
           final isDownloading = downloadProvider.isDownloadingPlaylist(
             playlist.id,
@@ -655,12 +662,28 @@ class _HomeScreenState extends State<HomeScreen> {
               isPlaying: playerProvider.isPlaying,
               isDownloaded: isDownloaded,
               isDownloading: isDownloading,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlaylistScreen(playlist: playlist),
-                ),
-              ),
+              onTap: () {
+                if (playlist.type == 'album') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AlbumScreen(
+                        albumId: playlist.id,
+                        title: playlist.title,
+                        artist: playlist.author,
+                        thumbnailUrl: playlist.thumbnailUrl,
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PlaylistScreen(playlist: playlist),
+                    ),
+                  );
+                }
+              },
               onPlay: () async {
                 if (isCurrent) {
                   playerProvider.togglePlayPause();
@@ -734,8 +757,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }
               },
-              onDelete: () =>
-                  context.read<PlaylistProvider>().deletePlaylist(playlist.id),
+              onDelete: () {
+                if (_homeTab == 5) {
+                  provider.toggleFavoriteCollection(
+                    playlist,
+                    playlist.type ?? 'playlist',
+                  );
+                } else {
+                  provider.deletePlaylist(playlist.id);
+                }
+              },
             ),
           );
         },
@@ -1907,29 +1938,30 @@ class _BrowsePlaylistCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: Row(
-                  children: [
-                    _MiniAction(
-                      icon: isDownloaded
-                          ? Icons.offline_pin_rounded
-                          : isDownloading
-                          ? Icons.downloading_rounded
-                          : Icons.download_rounded,
-                      onPressed: onDownload,
-                    ),
-                    const SizedBox(width: 6),
-                    _MiniAction(
-                      icon: isCurrentPlaylist && isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      onPressed: onPlay,
-                    ),
-                  ],
+              if (playlist.type != 'album')
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Row(
+                    children: [
+                      _MiniAction(
+                        icon: isDownloaded
+                            ? Icons.offline_pin_rounded
+                            : isDownloading
+                            ? Icons.downloading_rounded
+                            : Icons.download_rounded,
+                        onPressed: onDownload,
+                      ),
+                      const SizedBox(width: 6),
+                      _MiniAction(
+                        icon: isCurrentPlaylist && isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        onPressed: onPlay,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 10),

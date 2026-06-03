@@ -22,4 +22,8 @@ abstract class PlaylistRepository {
   Future<void> updatePlaylistTitle(String id, String newTitle);
   Future<void> removeTrack(String playlistId, String trackId);
   Future<void> reorderTracks(String playlistId, List<String> trackIdsInOrder);
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type);
+  Future<bool> isCollectionFavorite(String collectionId);
+  Future<Set<String>> getFavoriteCollectionIds();
+  Future<List<Playlist>> getFavoriteCollections();
 }

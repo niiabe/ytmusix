@@ -27,7 +27,7 @@ class PlaylistDatabase {
     final path = join(dbPath, 'ytmusix.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -84,6 +84,18 @@ class PlaylistDatabase {
         favoritedAt INTEGER NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS favorite_collections (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        thumbnailUrl TEXT,
+        author TEXT,
+        videoCount INTEGER DEFAULT 0,
+        favoritedAt INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -131,6 +143,20 @@ class PlaylistDatabase {
       await db.execute("ALTER TABLE tracks ADD COLUMN albumId TEXT");
       await db.execute("ALTER TABLE tracks ADD COLUMN artistId TEXT");
     }
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS favorite_collections (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          thumbnailUrl TEXT,
+          author TEXT,
+          videoCount INTEGER DEFAULT 0,
+          favoritedAt INTEGER NOT NULL
+        )
+      ''');
+    }
   }
 
   Future<void> insertPlaylist(PlaylistModel playlist) async {
@@ -139,6 +165,7 @@ class PlaylistDatabase {
     if (playlist.createdAt == 0) {
       map['createdAt'] = DateTime.now().millisecondsSinceEpoch;
     }
+    map.remove('type');
     await db.insert('playlists', map,
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -370,5 +397,44 @@ class PlaylistDatabase {
       );
     }
     return tracks;
+  }
+
+  Future<void> toggleFavoriteCollection(PlaylistModel playlist, String type) async {
+    final db = await database;
+    final existing = await db.query('favorite_collections',
+        where: 'id = ?', whereArgs: [playlist.id], limit: 1);
+    if (existing.isNotEmpty) {
+      await db.delete('favorite_collections', where: 'id = ?', whereArgs: [playlist.id]);
+    } else {
+      await db.insert('favorite_collections', {
+        'id': playlist.id,
+        'type': type,
+        'title': playlist.title,
+        'description': playlist.description,
+        'thumbnailUrl': playlist.thumbnailUrl,
+        'author': playlist.author,
+        'videoCount': playlist.videoCount,
+        'favoritedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
+
+  Future<bool> isCollectionFavorite(String collectionId) async {
+    final db = await database;
+    final result = await db.query('favorite_collections',
+        where: 'id = ?', whereArgs: [collectionId], limit: 1);
+    return result.isNotEmpty;
+  }
+
+  Future<Set<String>> getFavoriteCollectionIds() async {
+    final db = await database;
+    final result = await db.query('favorite_collections', columns: ['id']);
+    return result.map((r) => r['id'] as String).toSet();
+  }
+
+  Future<List<PlaylistModel>> getFavoriteCollections() async {
+    final db = await database;
+    final maps = await db.query('favorite_collections', orderBy: 'favoritedAt DESC');
+    return maps.map((m) => PlaylistModel.fromMap(m)).toList();
   }
 }

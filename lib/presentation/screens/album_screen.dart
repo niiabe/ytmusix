@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/format_duration.dart';
+import '../../domain/entities/playlist.dart';
 import '../../domain/entities/search_result_models.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
@@ -107,6 +108,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
   Widget _buildContent() {
     final album = _album!;
     final player = context.watch<PlayerProvider>();
+    final playlistProvider = context.watch<PlaylistProvider>();
+    final isFav = playlistProvider.isCollectionFavorite(album.id);
 
     return CustomScrollView(
       slivers: [
@@ -138,6 +141,27 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       ),
                     ),
                     const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        color: isFav ? Colors.redAccent : Colors.white,
+                        size: 20,
+                      ),
+                      tooltip: isFav ? 'Remove from favorites' : 'Add to favorites',
+                      onPressed: () {
+                        final playlist = Playlist(
+                          id: album.id,
+                          title: album.title,
+                          author: album.artist,
+                          thumbnailUrl: album.thumbnailUrl,
+                          videoCount: album.tracks.length,
+                          tracks: album.tracks,
+                          type: 'album',
+                        );
+                        playlistProvider.toggleFavoriteCollection(playlist, 'album');
+                      },
+                    ),
+                    const SizedBox(width: 8),
                     const Text(
                       'Album',
                       style: TextStyle(fontSize: 14, color: Colors.white54),

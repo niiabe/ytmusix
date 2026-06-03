@@ -8,6 +8,7 @@ class Playlist {
   final String? author;
   final int videoCount;
   final List<Track> tracks;
+  final String? type;
 
   Playlist({
     required this.id,
@@ -17,5 +18,6 @@ class Playlist {
     this.author,
     this.videoCount = 0,
     this.tracks = const [],
+    this.type,
   });
 }

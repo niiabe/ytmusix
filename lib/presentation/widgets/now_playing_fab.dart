@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import '../../core/utils/format_duration.dart';
 import '../../domain/entities/video.dart';
 import '../providers/player_provider.dart';
 import '../screens/player_screen.dart';
 
 /// A compact floating button that navigates to the Now Playing screen.
 /// Shows the current track thumbnail + animated playback indicator.
-/// Only rendered when [track] is non-null (controlled by the parent Scaffold).
 class NowPlayingFab extends StatefulWidget {
-  final Track track;
+  final Track? track;
   final bool isPlaying;
 
   const NowPlayingFab({
     super.key,
-    required this.track,
+    this.track,
     required this.isPlaying,
   });
 
@@ -58,6 +58,15 @@ class _NowPlayingFabState extends State<NowPlayingFab>
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
 
+    final String durationText;
+    if (track != null) {
+      final formattedPos = formatDuration(position);
+      final formattedDur = formatDuration(duration);
+      durationText = '$formattedPos / $formattedDur';
+    } else {
+      durationText = '';
+    }
+
     return ScaleTransition(
       scale: isPlaying ? _scaleAnim : const AlwaysStoppedAnimation(1.0),
       child: CustomPaint(
@@ -67,70 +76,84 @@ class _NowPlayingFabState extends State<NowPlayingFab>
           strokeWidth: 2.0,
           borderRadius: 18.0,
         ),
-        child: Container(
-          height: 60,
-          constraints: const BoxConstraints(minWidth: 200, maxWidth: 300),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withAlpha(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(100),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: CachedNetworkImage(
-                            imageUrl: track.thumbnailUrl ?? '',
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                Container(color: const Color(0xFF282828)),
-                            errorWidget: (context, url, error) => Container(
-                              color: const Color(0xFF282828),
-                              child: const Icon(Icons.music_note, size: 18),
-                            ),
+        child: IntrinsicWidth(
+          child: Container(
+            height: 64,
+            constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withAlpha(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(100),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (track != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                        );
+                      }
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: track?.thumbnailUrl != null
+                                ? CachedNetworkImage(
+                                    imageUrl: track!.thumbnailUrl!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: const Color(0xFF282828)),
+                                    errorWidget: (context, url, error) => Container(
+                                      color: const Color(0xFF282828),
+                                      child: const Icon(Icons.music_note, size: 18),
+                                    ),
+                                  )
+                                : Container(
+                                    color: const Color(0xFF222222),
+                                    child: const Icon(
+                                      Icons.music_note_rounded,
+                                      color: Colors.white24,
+                                      size: 20,
+                                    ),
+                                  ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                            if (track.author != null)
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                track.author!,
+                                track?.title ?? 'Not Playing',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                track?.author ?? 'Select a song to start',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -138,46 +161,61 @@ class _NowPlayingFabState extends State<NowPlayingFab>
                                   color: Colors.white54,
                                 ),
                               ),
-                          ],
+                              if (durationText.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  durationText,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white38,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (isLoading)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: track != null ? player.togglePlayPause : null,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: track != null
+                            ? Colors.white.withAlpha(20)
+                            : Colors.white.withAlpha(8),
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (isLoading)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: player.togglePlayPause,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(20),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 22,
+                      child: Icon(
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: track != null ? Colors.white : Colors.white24,
+                        size: 22,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
 
 class BorderProgressPainter extends CustomPainter {
   final double progress;

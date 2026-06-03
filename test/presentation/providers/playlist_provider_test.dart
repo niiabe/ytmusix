@@ -102,4 +102,16 @@ class _FakePlaylistRepository implements PlaylistRepository {
   @override
   Future<ArtistDetailResult> getArtist(String artistId) async =>
       throw UnimplementedError();
+
+  @override
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type) async {}
+
+  @override
+  Future<bool> isCollectionFavorite(String collectionId) async => false;
+
+  @override
+  Future<Set<String>> getFavoriteCollectionIds() async => const {};
+
+  @override
+  Future<List<Playlist>> getFavoriteCollections() async => const [];
 }

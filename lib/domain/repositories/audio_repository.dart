@@ -22,4 +22,5 @@ abstract class AudioRepository {
   bool get currentTrackCompleted;
   Stream<void> get onSkipNextRequested;
   Stream<void> get onSkipPreviousRequested;
+  Stream<dynamic> get mediaItemStream;
 }

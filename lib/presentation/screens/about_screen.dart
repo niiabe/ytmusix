@@ -115,6 +115,10 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      '1.4.0',
+      'Added favorite collection support (playlists and albums), fully rebuilt iOS background playback auto-advance and dynamic island integration, resolved layout overflow bugs, and optimized the Now Playing FAB with dynamic sizing.',
+    ),
+    (
       '1.3.0',
       'Added floating player controls with play/pause and progress seekbar border to FAB, removed mini-player layout, optimized audio quality settings defaults, added geo-restrictions bypass, resolved playlist duration mapping, fixed search playlist navigation, and adjusted artist page layouts.',
     ),

@@ -354,6 +354,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final anyDownloaded = tracks.any(
       (t) => downloadProvider.downloadedTrackIds.contains(t.id),
     );
+    final isFav = playlistProvider.isCollectionFavorite(playlist.id);
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 18),
       padding: const EdgeInsets.all(18),
@@ -382,12 +383,24 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               ),
               const Spacer(),
               IconButton(
+                icon: Icon(
+                  isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: isFav ? Colors.redAccent : Colors.white,
+                  size: 20,
+                ),
+                tooltip: isFav ? 'Remove from favorites' : 'Add to favorites',
+                onPressed: () => playlistProvider.toggleFavoriteCollection(
+                  playlist,
+                  'playlist',
+                ),
+              ),
+              IconButton(
                 icon: const Icon(Icons.edit_rounded, size: 20),
                 tooltip: 'Rename',
                 onPressed: () => _showRenameDialog(
                   context,
-                  widget.playlist.id,
-                  widget.playlist.title,
+                  playlist.id,
+                  playlist.title,
                   playlistProvider,
                 ),
               ),

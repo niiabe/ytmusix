@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/audio_quality.dart';
 import '../../core/constants/repeat_mode.dart' as repeat;
 import '../../domain/entities/video.dart';
 import '../../domain/repositories/audio_repository.dart';
+import 'package:audio_service/audio_service.dart';
 import '../../service/audio_handler.dart';
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,20 @@ class PlayerProvider extends ChangeNotifier {
     ) {
       previous();
     });
+    _mediaItemSub = _audioRepository.mediaItemStream.listen((item) {
+      if (item == null) return;
+      final index = _queue.indexWhere((t) => t.id == item.id);
+      if (index != -1 && _currentIndex != index) {
+        _currentIndex = index;
+        _currentTrack = _queue[index];
+        _position = Duration.zero;
+        _duration = item.duration ?? _currentTrack!.duration;
+        notifyListeners();
+        for (final cb in _trackChangedListeners) {
+          cb();
+        }
+      }
+    });
   }
 
   Track? _currentTrack;
@@ -35,7 +49,6 @@ class PlayerProvider extends ChangeNotifier {
   int _currentIndex = 0;
   bool _isPlaying = false;
   bool _isLoading = false;
-  bool _isHandlingCompletion = false;
   bool _shuffleMode = false;
   AudioQuality _lastPlaybackQuality = AudioQuality.low;
   repeat.PlaybackRepeatMode _repeatMode = repeat.PlaybackRepeatMode.none;
@@ -44,9 +57,9 @@ class PlayerProvider extends ChangeNotifier {
   Duration _bufferedPosition = Duration.zero;
   String? _error;
   String? _currentPlaylistId;
-  StreamSubscription? _completionSubscription;
   StreamSubscription? _skipNextSubscription;
   StreamSubscription? _skipPrevSubscription;
+  StreamSubscription? _mediaItemSub;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<Duration>? _bufferedPositionSub;
@@ -212,6 +225,14 @@ class PlayerProvider extends ChangeNotifier {
         repeat.PlaybackRepeatMode.values[(_repeatMode.index + 1) %
             repeat.PlaybackRepeatMode.values.length];
     notifyListeners();
+    if (_audioHandler != null) {
+      final mode = switch (_repeatMode) {
+        repeat.PlaybackRepeatMode.none => AudioServiceRepeatMode.none,
+        repeat.PlaybackRepeatMode.one => AudioServiceRepeatMode.one,
+        repeat.PlaybackRepeatMode.all => AudioServiceRepeatMode.all,
+      };
+      _audioHandler!.setRepeatMode(mode);
+    }
   }
 
   void startSleepTimer(Duration duration) {
@@ -254,11 +275,9 @@ class PlayerProvider extends ChangeNotifier {
     _currentTrack = track;
     _position = Duration.zero;
     _duration = track.duration;
-    _bufferedPosition = Duration.zero;
     _stopPolling();
-    _completionSubscription?.cancel();
     notifyListeners();
-
+ 
     try {
       _addToRecentlyPlayed(track);
       // Check preload cache first — avoids the 2-5s URL resolution wait.
@@ -271,7 +290,6 @@ class PlayerProvider extends ChangeNotifier {
       await _audioRepository.playTrack(track, audioUrl);
       _isPlaying = true;
       _startPolling();
-      _listenForCompletion();
       for (final cb in _trackChangedListeners) {
         cb();
       }
@@ -407,79 +425,8 @@ class PlayerProvider extends ChangeNotifier {
     _bufferedPositionSub = null;
   }
 
-  void _listenForCompletion() {
-    _completionSubscription?.cancel();
-    _completionSubscription = _audioRepository.processingStateStream.listen((
-      state,
-    ) {
-      if (state == ProcessingState.completed) {
-        unawaited(_handleCompletion());
-      }
-    });
-  }
-
-  Future<void> _handleCompletion() async {
-    if (_isHandlingCompletion || _queue.isEmpty) return;
-    _isHandlingCompletion = true;
-
-    try {
-      if (_repeatMode == repeat.PlaybackRepeatMode.one) {
-        await playFromQueue(_currentIndex);
-        return;
-      }
-      if (_currentIndex + 1 < _queue.length) {
-        await playFromQueue(_currentIndex + 1);
-        return;
-      }
-      if (_repeatMode == repeat.PlaybackRepeatMode.all) {
-        await playFromQueue(0);
-        return;
-      }
-
-      await _playRecommendationsFromCurrentTrack();
-    } finally {
-      _isHandlingCompletion = false;
-    }
-  }
-
-  Future<void> _playRecommendationsFromCurrentTrack() async {
-    final seed = _currentTrack ?? _queue[_currentIndex];
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final recommendations = await _audioRepository.getRecommendations(seed);
-      final seenIds = _queue.map((track) => track.id).toSet();
-      final uniqueRecommendations = <Track>[];
-      for (final track in recommendations) {
-        if (seenIds.add(track.id)) {
-          uniqueRecommendations.add(track);
-        }
-      }
-
-      if (uniqueRecommendations.isEmpty) {
-        _isPlaying = false;
-        return;
-      }
-
-      final firstRecommendationIndex = _queue.length;
-      _queue = [..._queue, ...uniqueRecommendations];
-      _currentIndex = firstRecommendationIndex;
-      notifyListeners();
-      await playTrack(_queue[_currentIndex], quality: _lastPlaybackQuality);
-    } catch (e) {
-      _isPlaying = false;
-      _error = 'Failed to load recommendations: ${e.toString()}';
-      notifyListeners();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
   Future<void> stop() async {
     _stopPolling();
-    _completionSubscription?.cancel();
     await _audioRepository.stop();
     _isPlaying = false;
     _position = Duration.zero;
@@ -515,9 +462,9 @@ class PlayerProvider extends ChangeNotifier {
     _sleepTimer?.cancel();
     _sleepTimerTick?.cancel();
     _stopPolling();
-    _completionSubscription?.cancel();
     _skipNextSubscription?.cancel();
     _skipPrevSubscription?.cancel();
+    _mediaItemSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _bufferedPositionSub?.cancel();

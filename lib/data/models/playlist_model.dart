@@ -10,6 +10,7 @@ class PlaylistModel {
   final int videoCount;
   final int createdAt;
   final List<TrackModel> tracks;
+  final String? type;
 
   PlaylistModel({
     required this.id,
@@ -20,6 +21,7 @@ class PlaylistModel {
     this.videoCount = 0,
     this.createdAt = 0,
     this.tracks = const [],
+    this.type,
   });
 
   factory PlaylistModel.fromMap(Map<String, dynamic> map) {
@@ -31,6 +33,7 @@ class PlaylistModel {
       author: map['author'] as String?,
       videoCount: map['videoCount'] as int? ?? 0,
       createdAt: map['createdAt'] as int? ?? 0,
+      type: map['type'] as String?,
       tracks: (map['tracks'] as List?)
               ?.map((t) => TrackModel.fromMap(t as Map<String, dynamic>))
               .toList() ??
@@ -47,6 +50,7 @@ class PlaylistModel {
       'author': author,
       'videoCount': videoCount,
       'createdAt': createdAt,
+      if (type != null) 'type': type,
     };
   }
 
@@ -58,6 +62,7 @@ class PlaylistModel {
       thumbnailUrl: thumbnailUrl,
       author: author,
       videoCount: videoCount,
+      type: type,
       tracks: tracks.map((t) => t.toEntity()).toList(),
     );
   }

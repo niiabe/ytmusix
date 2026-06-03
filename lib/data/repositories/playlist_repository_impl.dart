@@ -263,4 +263,35 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   Future<ArtistDetailResult> getArtist(String artistId) async {
     return remoteDataSource.getArtist(artistId);
   }
+
+  @override
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type) async {
+    await localDatabase.toggleFavoriteCollection(
+      PlaylistModel(
+        id: playlist.id,
+        title: playlist.title,
+        description: playlist.description,
+        thumbnailUrl: playlist.thumbnailUrl,
+        author: playlist.author,
+        videoCount: playlist.videoCount,
+      ),
+      type,
+    );
+  }
+
+  @override
+  Future<bool> isCollectionFavorite(String collectionId) async {
+    return localDatabase.isCollectionFavorite(collectionId);
+  }
+
+  @override
+  Future<Set<String>> getFavoriteCollectionIds() async {
+    return localDatabase.getFavoriteCollectionIds();
+  }
+
+  @override
+  Future<List<Playlist>> getFavoriteCollections() async {
+    final models = await localDatabase.getFavoriteCollections();
+    return models.map((m) => m.toEntity()).toList();
+  }
 }

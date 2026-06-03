@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -164,6 +165,7 @@ class FakeAudioRepository implements AudioRepository {
   final durationController = StreamController<Duration>.broadcast();
   final skipNextController = StreamController<void>.broadcast();
   final skipPreviousController = StreamController<void>.broadcast();
+  final mediaItemController = StreamController<dynamic>.broadcast();
 
   final playedTrackIds = <String>[];
   final requestedQualities = <String>[];
@@ -204,6 +206,12 @@ class FakeAudioRepository implements AudioRepository {
   Future<void> playTrack(Track track, String audioUrl) async {
     playedTrackIds.add(track.id);
     playing = true;
+    mediaItemController.add(MediaItem(
+      id: track.id,
+      title: track.title,
+      artist: track.author ?? '',
+      duration: track.duration,
+    ));
   }
 
   @override
@@ -261,6 +269,9 @@ class FakeAudioRepository implements AudioRepository {
   @override
   Stream<void> get onSkipPreviousRequested => skipPreviousController.stream;
 
+  @override
+  Stream<dynamic> get mediaItemStream => mediaItemController.stream;
+
   void dispose() {
     processingController.close();
     positionController.close();
@@ -268,5 +279,6 @@ class FakeAudioRepository implements AudioRepository {
     durationController.close();
     skipNextController.close();
     skipPreviousController.close();
+    mediaItemController.close();
   }
 }

@@ -118,4 +118,7 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Stream<void> get onSkipPreviousRequested =>
       _handler.skipPreviousRequested.stream;
+
+  @override
+  Stream<dynamic> get mediaItemStream => _handler.mediaItem.stream;
 }
