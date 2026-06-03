@@ -40,7 +40,7 @@ class LicensesScreen extends StatelessWidget {
                         child: Text(
                           'Licenses',
                           style: TextStyle(
-                            fontSize: 30,
+                            fontSize: 24,
                             fontWeight: FontWeight.w800,
                           ),
                         ),

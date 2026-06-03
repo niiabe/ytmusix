@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ytmusix/domain/entities/playlist.dart';
+import 'package:ytmusix/domain/entities/search_result_models.dart';
 import 'package:ytmusix/domain/entities/video.dart';
 import 'package:ytmusix/domain/repositories/playlist_repository.dart';
 import 'package:ytmusix/presentation/providers/playlist_provider.dart';
@@ -89,4 +90,16 @@ class _FakePlaylistRepository implements PlaylistRepository {
 
   @override
   Future<void> updatePlaylistTitle(String id, String newTitle) async {}
+
+  @override
+  Future<CategorizedSearchResults> searchAll(String query) async =>
+      const CategorizedSearchResults();
+
+  @override
+  Future<AlbumDetailResult> getAlbum(String playlistId) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ArtistDetailResult> getArtist(String artistId) async =>
+      throw UnimplementedError();
 }

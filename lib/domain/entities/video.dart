@@ -5,6 +5,8 @@ class Track {
   final Duration duration;
   final String? author;
   final int index;
+  final String? albumId;
+  final String? artistId;
 
   const Track({
     required this.id,
@@ -13,5 +15,7 @@ class Track {
     this.duration = Duration.zero,
     this.author,
     this.index = 0,
+    this.albumId,
+    this.artistId,
   });
 }

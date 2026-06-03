@@ -6,7 +6,20 @@ import '../core/utils/network_utils.dart';
 import 'auth_service.dart';
 
 class MusicAudioHandler extends BaseAudioHandler {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = AudioPlayer(
+    audioLoadConfiguration: AudioLoadConfiguration(
+      darwinLoadControl: DarwinLoadControl(
+        preferredForwardBufferDuration: const Duration(seconds: 3),
+        automaticallyWaitsToMinimizeStalling: false,
+      ),
+      androidLoadControl: AndroidLoadControl(
+        minBufferDuration: const Duration(seconds: 3),
+        maxBufferDuration: const Duration(seconds: 15),
+        bufferForPlaybackDuration: const Duration(milliseconds: 800),
+        bufferForPlaybackAfterRebufferDuration: const Duration(seconds: 2),
+      ),
+    ),
+  );
   final AuthService _authService = AuthService();
 
   final skipNextRequested = StreamController<void>.broadcast();
@@ -129,23 +142,19 @@ class MusicAudioHandler extends BaseAudioHandler {
     _currentIndex = _queue.indexWhere((e) => e.id == item.id);
     if (_currentIndex == -1) _currentIndex = null;
     mediaItem.add(item);
-    final client = http.Client();
+    // Build the URI directly — just_audio handles redirects internally,
+    // so we skip the extra blocking resolveRedirects round-trip.
     final Uri uri;
-    try {
-      uri = url.startsWith('http') || url.startsWith('https')
-          ? Uri.parse(
-              await NetworkUtils.resolveRedirects(
-                client,
-                url,
-                headers: await _getHeaders(),
-              ),
-            )
-          : Uri.file(url);
-    } finally {
-      client.close();
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      uri = Uri.parse(url);
+    } else {
+      uri = Uri.file(url);
     }
+    final headers = await _getHeaders();
     await _player.stop();
-    await _player.setAudioSource(AudioSource.uri(uri, tag: item));
+    await _player.setAudioSource(
+      AudioSource.uri(uri, headers: headers, tag: item),
+    );
     unawaited(_player.play());
   }
 

@@ -9,6 +9,7 @@ import '../providers/settings_provider.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/track_action_sheet.dart';
 import '../widgets/video_tile.dart';
+import '../widgets/now_playing_fab.dart';
 import 'player_screen.dart';
 
 class PlaylistScreen extends StatefulWidget {
@@ -48,7 +49,15 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
         );
       };
       player.addTrackChangedListener(_trackChangedHandler!);
-      context.read<PlaylistProvider>().loadCachedPlaylist(widget.playlist.id);
+      
+      final provider = context.read<PlaylistProvider>();
+      provider.loadCachedPlaylist(widget.playlist.id).then((_) {
+        if (!mounted) return;
+        final current = provider.currentPlaylist;
+        if ((current == null || current.tracks.isEmpty) && !provider.isLoading) {
+          provider.fetchPlaylist(widget.playlist.id);
+        }
+      });
     });
   }
 
@@ -67,7 +76,16 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final player = context.watch<PlayerProvider>();
+    final isNowPlaying = player.currentTrack != null;
+
     return Scaffold(
+      floatingActionButton: isNowPlaying
+          ? NowPlayingFab(
+              track: player.currentTrack!,
+              isPlaying: player.isPlaying,
+            )
+          : null,
       body: SafeArea(
         child: Consumer3<PlaylistProvider, PlayerProvider, DownloadProvider>(
           builder:
@@ -115,9 +133,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     if (isDownloading)
                       _buildDownloadProgress(downloadProvider, tracks),
                     Expanded(
-                      child: tracks.isEmpty
-                          ? const Center(child: Text('No tracks found'))
-                          : RefreshIndicator(
+                      child: playlistProvider.isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : tracks.isEmpty
+                              ? const Center(child: Text('No tracks found'))
+                              : RefreshIndicator(
                               onRefresh: () async {
                                 final provider = context
                                     .read<PlaylistProvider>();

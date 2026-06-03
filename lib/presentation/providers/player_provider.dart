@@ -10,6 +10,11 @@ import '../../domain/entities/video.dart';
 import '../../domain/repositories/audio_repository.dart';
 import '../../service/audio_handler.dart';
 
+// ---------------------------------------------------------------------------
+// URL cache — maps trackId -> resolved stream URL so the next-track load
+// is instant when the URL was prefetched during the current track's playback.
+// ---------------------------------------------------------------------------
+
 class PlayerProvider extends ChangeNotifier {
   final AudioRepository _audioRepository;
 
@@ -49,6 +54,10 @@ class PlayerProvider extends ChangeNotifier {
   Timer? _sleepTimer;
   Timer? _sleepTimerTick;
   Duration? _sleepTimerRemaining;
+
+  /// Preloaded stream URL cache. Key = track.id, value = resolved URL.
+  final Map<String, String> _urlCache = {};
+  bool _isPrebuffering = false;
 
   final List<VoidCallback> _trackChangedListeners = [];
 
@@ -252,10 +261,13 @@ class PlayerProvider extends ChangeNotifier {
 
     try {
       _addToRecentlyPlayed(track);
-      final audioUrl = await _audioRepository.getAudioUrl(
-        track,
-        quality: quality.name,
-      );
+      // Check preload cache first — avoids the 2-5s URL resolution wait.
+      final cachedUrl = _urlCache.remove(track.id);
+      final audioUrl = cachedUrl ??
+          await _audioRepository.getAudioUrl(
+            track,
+            quality: quality.name,
+          );
       await _audioRepository.playTrack(track, audioUrl);
       _isPlaying = true;
       _startPolling();
@@ -263,11 +275,46 @@ class PlayerProvider extends ChangeNotifier {
       for (final cb in _trackChangedListeners) {
         cb();
       }
+      // Kick off background prefetch for upcoming tracks.
+      unawaited(_prebufferNext(_currentIndex + 1, quality));
     } catch (e) {
       _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Preloads stream URLs for the next [count] tracks into [_urlCache].
+  Future<void> _prebufferNext(int fromIndex, AudioQuality quality) async {
+    if (_isPrebuffering) return;
+    _isPrebuffering = true;
+    final count = 2; // matches SettingsProvider.defaultPrebufferCount
+    try {
+      for (var i = fromIndex; i < fromIndex + count && i < _queue.length; i++) {
+        final track = _queue[i];
+        if (_urlCache.containsKey(track.id)) continue;
+        try {
+          final url = await _audioRepository.getAudioUrl(
+            track,
+            quality: quality.name,
+          );
+          _urlCache[track.id] = url;
+        } catch (_) {
+          // Prefetch failures are silent — url will be fetched on demand.
+        }
+      }
+      // Evict URLs for tracks that are 3+ positions behind current index.
+      final staleThreshold = _currentIndex - 3;
+      if (staleThreshold > 0) {
+        final staleIds = _queue
+            .sublist(0, staleThreshold.clamp(0, _queue.length))
+            .map((t) => t.id)
+            .toSet();
+        _urlCache.removeWhere((id, _) => staleIds.contains(id));
+      }
+    } finally {
+      _isPrebuffering = false;
     }
   }
 

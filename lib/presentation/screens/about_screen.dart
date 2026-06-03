@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/app_constants.dart';
 import '../widgets/pixel_logo.dart';
 import 'licenses_screen.dart';
+import 'contributors_screen.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -42,7 +43,7 @@ class AboutScreen extends StatelessWidget {
                             const Text(
                               AppConstants.appName,
                               style: TextStyle(
-                                fontSize: 30,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -89,6 +90,16 @@ class AboutScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
+                _ActionTile(
+                  icon: Icons.people_rounded,
+                  title: 'Contributors',
+                  subtitle: 'Meet the creators behind the app',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ContributorsScreen()),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 const _ChangelogSection(),
               ],
             );
@@ -103,6 +114,10 @@ class _ChangelogSection extends StatelessWidget {
   const _ChangelogSection();
 
   static const _items = [
+    (
+      '1.3.0',
+      'Added floating player controls with play/pause and progress seekbar border to FAB, removed mini-player layout, optimized audio quality settings defaults, added geo-restrictions bypass, resolved playlist duration mapping, fixed search playlist navigation, and adjusted artist page layouts.',
+    ),
     (
       '1.2.0',
       'Added Apple Music chart shelves with scoped Top 100 songs, album detail playback, recommendation autoplay, cached chart/search lookups, a custom video player, and refreshed About details.',
@@ -217,7 +232,7 @@ class _PageHeader extends StatelessWidget {
         const SizedBox(width: 16),
         Text(
           title,
-          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
       ],
     );

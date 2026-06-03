@@ -5,6 +5,8 @@ import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import '../providers/settings_provider.dart';
+import '../screens/album_screen.dart';
+import '../screens/artist_screen.dart';
 import '../screens/player_screen.dart';
 
 Future<void> showTrackActionSheet(
@@ -18,6 +20,7 @@ Future<void> showTrackActionSheet(
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
+    isScrollControlled: true,
     builder: (sheetContext) => _TrackActionSheet(
       track: track,
       queue: queue,
@@ -79,6 +82,43 @@ class _TrackActionSheet extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
+          if (track.artistId != null)
+            _TrackAction(
+              icon: Icons.person_outline_rounded,
+              title: 'Go to artist',
+              subtitle: track.author ?? 'View artist page',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ArtistScreen(
+                      artistId: track.artistId!,
+                      name: track.author,
+                    ),
+                  ),
+                );
+              },
+            ),
+          if (track.albumId != null)
+            _TrackAction(
+              icon: Icons.album_outlined,
+              title: 'Go to album',
+              subtitle: 'View album tracks',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AlbumScreen(
+                      albumId: track.albumId!,
+                      artist: track.author,
+                      artistId: track.artistId,
+                    ),
+                  ),
+                );
+              },
+            ),
           if (!isDownloaded && !isDownloading)
             _TrackAction(
               icon: Icons.download_rounded,
@@ -111,39 +151,53 @@ class _TrackActionSheet extends StatelessWidget {
             ),
         ];
 
-        return Container(
-          margin: const EdgeInsets.all(14),
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-          decoration: BoxDecoration(
-            color: const Color(0xFF171717),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withAlpha(14)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              decoration: BoxDecoration(
+                color: const Color(0xFF171717),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withAlpha(14)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  track.author ?? 'Unknown artist',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                ...actions.map((action) => _ActionTile(action: action)),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    track.author ?? 'Unknown artist',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ...actions.map((action) => _ActionTile(action: action)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );

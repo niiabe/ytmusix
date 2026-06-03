@@ -1,4 +1,5 @@
 import '../../domain/entities/playlist.dart';
+import '../../domain/entities/search_result_models.dart';
 import '../../domain/entities/video.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../datasources/local/playlist_database.dart';
@@ -246,5 +247,20 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       videoCount: match.videoCount,
       tracks: tracks,
     );
+  }
+
+  @override
+  Future<CategorizedSearchResults> searchAll(String query) async {
+    return remoteDataSource.searchAll(query);
+  }
+
+  @override
+  Future<AlbumDetailResult> getAlbum(String playlistId) async {
+    return remoteDataSource.getAlbum(playlistId);
+  }
+
+  @override
+  Future<ArtistDetailResult> getArtist(String artistId) async {
+    return remoteDataSource.getArtist(artistId);
   }
 }

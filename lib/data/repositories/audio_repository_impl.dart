@@ -19,7 +19,7 @@ class AudioRepositoryImpl implements AudioRepository {
   });
 
   @override
-  Future<String> getAudioUrl(Track track, {String quality = 'medium'}) async {
+  Future<String> getAudioUrl(Track track, {String quality = 'low'}) async {
     final localPath = await _database.getDownloadedFilePath(track.id);
     if (localPath != null && File(localPath).existsSync()) {
       return localPath;
@@ -31,7 +31,7 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   @override
-  Future<String> getVideoUrl(Track track, {String quality = 'medium'}) {
+  Future<String> getVideoUrl(Track track, {String quality = 'low'}) {
     return remoteDataSource.getVideoUrl(track.id, quality: quality);
   }
 

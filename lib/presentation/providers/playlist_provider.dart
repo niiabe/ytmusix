@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/playlist_sort_mode.dart';
+import '../../domain/entities/search_result_models.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
 import '../../domain/repositories/playlist_repository.dart';
@@ -26,8 +27,17 @@ class PlaylistProvider extends ChangeNotifier {
 
   static const _silentSearchCachePrefix = 'silent_search_cache_v1';
   static const _silentSearchCacheMaxAge = Duration(days: 7);
+  static const _searchHistoryKey = 'search_history_v1';
+  static const _maxSearchHistory = 20;
+
+  List<String> _searchHistory = [];
+  CategorizedSearchResults? _categorizedResults;
+  bool _isCategorizedSearching = false;
 
   PlaylistSortMode get sortMode => _sortMode;
+  List<String> get searchHistory => List.unmodifiable(_searchHistory);
+  CategorizedSearchResults? get categorizedResults => _categorizedResults;
+  bool get isCategorizedSearching => _isCategorizedSearching;
 
   List<Playlist> get playlists {
     final sorted = List<Playlist>.from(_playlists);
@@ -620,5 +630,84 @@ class PlaylistProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> loadSearchHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _searchHistory = prefs.getStringList(_searchHistoryKey) ?? [];
+      notifyListeners();
+    } catch (e) {
+      dev.log('Failed to load search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> addSearchHistory(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    _searchHistory.remove(trimmed);
+    _searchHistory.insert(0, trimmed);
+    if (_searchHistory.length > _maxSearchHistory) {
+      _searchHistory = _searchHistory.sublist(0, _maxSearchHistory);
+    }
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_searchHistoryKey, _searchHistory);
+    } catch (e) {
+      dev.log('Failed to save search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> removeSearchHistory(String query) async {
+    _searchHistory.remove(query);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_searchHistoryKey, _searchHistory);
+    } catch (e) {
+      dev.log('Failed to remove search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> clearSearchHistory() async {
+    _searchHistory.clear();
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_searchHistoryKey);
+    } catch (e) {
+      dev.log('Failed to clear search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<CategorizedSearchResults> searchAll(String query) async {
+    _isCategorizedSearching = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final results = await _repository.searchAll(query);
+      _categorizedResults = results;
+      return results;
+    } catch (e) {
+      _error = e.toString();
+      return const CategorizedSearchResults();
+    } finally {
+      _isCategorizedSearching = false;
+      notifyListeners();
+    }
+  }
+
+  void clearCategorizedResults() {
+    _categorizedResults = null;
+    notifyListeners();
+  }
+
+  Future<AlbumDetailResult> getAlbum(String playlistId) async {
+    return _repository.getAlbum(playlistId);
+  }
+
+  Future<ArtistDetailResult> getArtist(String artistId) async {
+    return _repository.getArtist(artistId);
   }
 }

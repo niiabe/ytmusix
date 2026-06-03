@@ -13,7 +13,7 @@ import '../providers/player_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/pixel_logo.dart';
-import '../widgets/now_playing_card.dart';
+import '../widgets/now_playing_fab.dart';
 import '../widgets/track_action_sheet.dart';
 import 'playlist_screen.dart';
 import 'player_screen.dart';
@@ -148,23 +148,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final player = context.watch<PlayerProvider>();
+    final isNowPlaying = player.currentTrack != null;
+
     return Scaffold(
+      floatingActionButton: isNowPlaying
+          ? NowPlayingFab(
+              track: player.currentTrack!,
+              isPlaying: player.isPlaying,
+            )
+          : null,
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            Column(
-              children: [
-                _buildHeader(context),
-                _buildErrorBanner(),
-                Expanded(child: _buildContent(context)),
-              ],
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 4,
-              child: _buildNowPlaying(context),
-            ),
+            _buildHeader(context),
+            _buildErrorBanner(),
+            Expanded(child: _buildContent(context)),
           ],
         ),
       ),
@@ -356,29 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNowPlaying(BuildContext context) {
-    return Consumer<PlayerProvider>(
-      builder: (context, player, _) {
-        if (player.currentTrack == null) return const SizedBox.shrink();
-        return NowPlayingCard(
-          track: player.currentTrack!,
-          isPlaying: player.isPlaying,
-          isLoading: player.isLoading,
-          position: player.position,
-          duration: player.duration,
-          onPlayPause: player.togglePlayPause,
-          onPrevious: player.previous,
-          onNext: player.currentIndex + 1 < player.queue.length
-              ? player.next
-              : null,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const PlayerScreen()),
-          ),
-        );
-      },
-    );
-  }
+
 
   Widget _buildContent(BuildContext context) {
     return Consumer3<PlaylistProvider, PlayerProvider, DownloadProvider>(
@@ -451,7 +428,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const Text(
                 'Browse',
-                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 18),
               _buildCategoryTabs(),
@@ -539,22 +516,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategoryTabs() {
     return SizedBox(
-      height: 28,
+      height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 18),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final active = index == _homeTab;
           return GestureDetector(
             onTap: () => _selectHomeTab(index),
-            child: Center(
-              child: Text(
-                _tabs[index],
-                style: TextStyle(
-                  color: active ? Colors.white : Colors.white38,
-                  fontSize: 14,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: active
+                    ? Theme.of(context).colorScheme.primary.withAlpha(30)
+                    : const Color(0xFF171717),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: active
+                      ? Theme.of(context).colorScheme.primary.withAlpha(120)
+                      : Colors.white.withAlpha(12),
+                  width: active ? 1.2 : 1.0,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  _tabs[index],
+                  style: TextStyle(
+                    color: active ? Colors.white : Colors.white60,
+                    fontSize: 13,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),

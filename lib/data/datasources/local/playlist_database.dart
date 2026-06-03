@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../models/playlist_model.dart';
 import '../../models/video_model.dart';
 
@@ -26,7 +27,7 @@ class PlaylistDatabase {
     final path = join(dbPath, 'ytmusix.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -125,6 +126,10 @@ class PlaylistDatabase {
           favoritedAt INTEGER NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 6) {
+      await db.execute("ALTER TABLE tracks ADD COLUMN albumId TEXT");
+      await db.execute("ALTER TABLE tracks ADD COLUMN artistId TEXT");
     }
   }
 
@@ -238,18 +243,40 @@ class PlaylistDatabase {
     return result.isNotEmpty;
   }
 
+  Future<String> _resolveDynamicPath(String storedPath) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final index = storedPath.indexOf('downloads/');
+    if (index != -1) {
+      final relativePath = storedPath.substring(index);
+      return join(appDir.path, relativePath);
+    }
+    return storedPath;
+  }
+
   Future<String?> getDownloadedFilePath(String trackId) async {
     final db = await database;
     final result = await db.query('downloaded_tracks',
         where: 'id = ?', whereArgs: [trackId], limit: 1);
     if (result.isEmpty) return null;
-    return result.first['filePath'] as String?;
+    final path = result.first['filePath'] as String?;
+    if (path == null) return null;
+    return _resolveDynamicPath(path);
   }
 
   Future<List<Map<String, dynamic>>> getDownloadedTracks(String playlistId) async {
     final db = await database;
-    return db.query('downloaded_tracks',
+    final results = await db.query('downloaded_tracks',
         where: 'playlistId = ?', whereArgs: [playlistId]);
+    final resolved = <Map<String, dynamic>>[];
+    for (final map in results) {
+      final newMap = Map<String, dynamic>.from(map);
+      final path = newMap['filePath'] as String?;
+      if (path != null) {
+        newMap['filePath'] = await _resolveDynamicPath(path);
+      }
+      resolved.add(newMap);
+    }
+    return resolved;
   }
 
   Future<void> removeDownloadedTrack(String trackId) async {
@@ -262,7 +289,14 @@ class PlaylistDatabase {
     final result = await db.query('downloaded_tracks',
         columns: ['filePath'],
         where: 'playlistId = ?', whereArgs: [playlistId]);
-    return result.map((r) => r['filePath'] as String).toList();
+    final paths = <String>[];
+    for (final r in result) {
+      final path = r['filePath'] as String?;
+      if (path != null) {
+        paths.add(await _resolveDynamicPath(path));
+      }
+    }
+    return paths;
   }
 
   Future<void> removeDownloadedPlaylist(String playlistId) async {
