@@ -5,14 +5,17 @@ import '../../core/constants/audio_quality.dart';
 class SettingsProvider extends ChangeNotifier {
   static const _keyPrebufferCount = 'prebufferCount';
   static const _keyAudioQuality = 'audioQuality';
+  static const _keyCrossfadeEnabled = 'crossfadeEnabled';
 
   static const defaultPrebufferCount = 2;
 
   int _prebufferCount = defaultPrebufferCount;
   AudioQuality _audioQuality = AudioQuality.low;
+  bool _crossfadeEnabled = false;
 
   int get prebufferCount => _prebufferCount;
   AudioQuality get audioQuality => _audioQuality;
+  bool get crossfadeEnabled => _crossfadeEnabled;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,6 +27,7 @@ class SettingsProvider extends ChangeNotifier {
             orElse: () => AudioQuality.low,
           )
         : AudioQuality.low;
+    _crossfadeEnabled = prefs.getBool(_keyCrossfadeEnabled) ?? false;
     notifyListeners();
   }
 
@@ -38,6 +42,13 @@ class SettingsProvider extends ChangeNotifier {
     _audioQuality = quality;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyAudioQuality, quality.name);
+    notifyListeners();
+  }
+
+  Future<void> setCrossfadeEnabled(bool enabled) async {
+    _crossfadeEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyCrossfadeEnabled, enabled);
     notifyListeners();
   }
 }

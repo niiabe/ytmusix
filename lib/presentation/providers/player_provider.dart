@@ -63,6 +63,7 @@ class PlayerProvider extends ChangeNotifier {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<Duration>? _bufferedPositionSub;
+  StreamSubscription? _playbackStateSub;
 
   Timer? _sleepTimer;
   Timer? _sleepTimerTick;
@@ -147,6 +148,7 @@ class PlayerProvider extends ChangeNotifier {
       _queue.removeAt(index);
       if (index < _currentIndex) _currentIndex--;
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -164,6 +166,7 @@ class PlayerProvider extends ChangeNotifier {
         _currentIndex++;
       }
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -189,6 +192,7 @@ class PlayerProvider extends ChangeNotifier {
     _originalQueue = null;
     _shuffleMode = false;
     _error = null;
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -217,6 +221,7 @@ class PlayerProvider extends ChangeNotifier {
       }
       _shuffleMode = true;
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -455,6 +460,37 @@ class PlayerProvider extends ChangeNotifier {
 
   void setAudioHandler(MusicAudioHandler handler) {
     _audioHandler = handler;
+    _playbackStateSub?.cancel();
+    _playbackStateSub = handler.playbackState.listen((state) {
+      if (_isPlaying != state.playing) {
+        _isPlaying = state.playing;
+        notifyListeners();
+      }
+    });
+    _syncQueueToHandler();
+  }
+
+  MediaItem _trackToMediaItem(Track track) {
+    return MediaItem(
+      id: track.id,
+      title: track.title,
+      artist: track.author ?? '',
+      artUri: track.thumbnailUrl != null
+          ? Uri.tryParse(track.thumbnailUrl!)
+          : null,
+      duration: track.duration,
+    );
+  }
+
+  void _syncQueueToHandler() {
+    if (_audioHandler != null) {
+      final items = _queue.map(_trackToMediaItem).toList();
+      _audioHandler!.setQueue(items, startIndex: _currentIndex);
+    }
+  }
+
+  void setCrossfadeEnabled(bool enabled) {
+    _audioHandler?.customAction('setCrossfadeEnabled', {'enabled': enabled});
   }
 
   @override
@@ -465,6 +501,7 @@ class PlayerProvider extends ChangeNotifier {
     _skipNextSubscription?.cancel();
     _skipPrevSubscription?.cancel();
     _mediaItemSub?.cancel();
+    _playbackStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _bufferedPositionSub?.cancel();

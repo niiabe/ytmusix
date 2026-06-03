@@ -19,7 +19,7 @@ class YTMusixApp extends StatelessWidget {
   final SettingsProvider settingsProvider;
   final MusicAudioHandler audioHandler;
 
-  YTMusixApp({
+  const YTMusixApp({
     super.key,
     required this.playlistRepository,
     required this.audioRepository,
@@ -27,9 +27,7 @@ class YTMusixApp extends StatelessWidget {
     required this.chartProvider,
     required this.settingsProvider,
     required this.audioHandler,
-  }) {
-    audioHandler.setRepository(audioRepository);
-  }
+  });
 
   @override
   Widget build(BuildContext context) {

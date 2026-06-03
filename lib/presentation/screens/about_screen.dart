@@ -115,6 +115,10 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      '1.4.1',
+      'Fixed background audio playback and track auto-play progression on Android devices, and introduced a toggleable 7-second crossfade feature on the Now Playing screen.',
+    ),
+    (
       '1.4.0',
       'Added favorite collection support (playlists and albums), fully rebuilt iOS background playback auto-advance and dynamic island integration, resolved layout overflow bugs, and optimized the Now Playing FAB with dynamic sizing.',
     ),

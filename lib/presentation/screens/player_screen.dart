@@ -146,6 +146,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       ),
                                       IconButton(
                                         icon: Icon(
+                                          Icons.compare_arrows_rounded,
+                                          color: settings.crossfadeEnabled
+                                              ? Colors.greenAccent
+                                              : Colors.white54,
+                                        ),
+                                        tooltip: 'Crossfade (7s)',
+                                        onPressed: () {
+                                          final nextVal = !settings.crossfadeEnabled;
+                                          settings.setCrossfadeEnabled(nextVal);
+                                          player.setCrossfadeEnabled(nextVal);
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
                                           isFav
                                               ? Icons.favorite_rounded
                                               : Icons.favorite_border_rounded,

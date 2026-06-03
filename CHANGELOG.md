@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+- Fixed background audio playback and track auto-play progression on Android.
+- Introduced a toggleable 7-second crossfade feature on the Now Playing screen.
+
 ## 1.4.0
 
 - Added favorite collection support (playlists and albums).
