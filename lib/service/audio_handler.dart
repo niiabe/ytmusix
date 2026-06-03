@@ -152,7 +152,11 @@ class MusicAudioHandler extends BaseAudioHandler {
           url,
           headers: headers,
         );
-        source = AudioSource.uri(Uri.parse(resolvedUrl), tag: item);
+        source = AudioSource.uri(
+          Uri.parse(resolvedUrl),
+          headers: headers,
+          tag: item,
+        );
       } finally {
         client.close();
       }
