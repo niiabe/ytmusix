@@ -142,12 +142,20 @@ class MusicAudioHandler extends BaseAudioHandler {
     _currentIndex = _queue.indexWhere((e) => e.id == item.id);
     if (_currentIndex == -1) _currentIndex = null;
     mediaItem.add(item);
-    // Build the audio source directly. We only pass cookies/headers for YouTube streams.
-    // Native players fail with "Source error" when headers are supplied to local files.
     final AudioSource source;
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      final headers = await _getHeaders();
-      source = AudioSource.uri(Uri.parse(url), headers: headers, tag: item);
+      final client = http.Client();
+      try {
+        final headers = await _getHeaders();
+        final resolvedUrl = await NetworkUtils.resolveRedirects(
+          client,
+          url,
+          headers: headers,
+        );
+        source = AudioSource.uri(Uri.parse(resolvedUrl), tag: item);
+      } finally {
+        client.close();
+      }
     } else {
       source = AudioSource.file(url, tag: item);
     }
