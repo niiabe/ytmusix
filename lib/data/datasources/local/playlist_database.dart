@@ -27,7 +27,7 @@ class PlaylistDatabase {
     final path = join(dbPath, 'ytmusix.db');
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -54,6 +54,8 @@ class PlaylistDatabase {
         durationSeconds INTEGER DEFAULT 0,
         author TEXT,
         idx INTEGER DEFAULT 0,
+        albumId TEXT,
+        artistId TEXT,
         PRIMARY KEY (id, playlistId),
         FOREIGN KEY (playlistId) REFERENCES playlists(id) ON DELETE CASCADE
       )
@@ -156,6 +158,22 @@ class PlaylistDatabase {
           favoritedAt INTEGER NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 8) {
+      // Defensive: ensure albumId/artistId columns exist on tracks.
+      // The v6 migration only ran for users who upgraded through it; fresh
+      // installs at v7 (e.g. when the app's package id changed for canary
+      // builds) created the table without these columns and would throw a
+      // DatabaseException on the first track insert. Re-check the schema and
+      // ALTER if any column is missing so this is safe to run on any v7 DB.
+      final trackCols = await db.rawQuery('PRAGMA table_info(tracks)');
+      final trackColNames = trackCols.map((c) => c['name'] as String).toSet();
+      if (!trackColNames.contains('albumId')) {
+        await db.execute('ALTER TABLE tracks ADD COLUMN albumId TEXT');
+      }
+      if (!trackColNames.contains('artistId')) {
+        await db.execute('ALTER TABLE tracks ADD COLUMN artistId TEXT');
+      }
     }
   }
 

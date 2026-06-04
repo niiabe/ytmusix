@@ -22,19 +22,10 @@ class YoutubeRemoteDataSource {
     final inner = AuthenticatedClient(cookies: cookies);
     final ytHttp = YoutubeHttpClient(inner);
     _yt = YoutubeExplode(httpClient: ytHttp);
-    _ytMusic = ytmusic.YTMusic();
-    try {
-      // Use hl=en + gl=US to bypass geo-restrictions (e.g. China).
-      // This presents the international catalog rather than a region-locked one.
-      await _ytMusic
-          .initialize(cookies: cookies, gl: 'US', hl: 'en')
-          .timeout(_timeout);
-    } catch (e) {
-      dev.log(
-        'YouTube Music API initialization failed, using YouTube fallback: $e',
-        name: 'YoutubeRemoteDataSource',
-      );
-    }
+    // YouTube Music API integration is disabled — the standalone ytmusic
+    // package is not in this project's dependencies. YouTube catalog features
+    // (search, recommendations, related videos) are powered by
+    // youtube_explode_dart instead.
   }
 
   Future<PlaylistModel> getPlaylist(String playlistId) async {
@@ -155,6 +146,35 @@ class YoutubeRemoteDataSource {
     );
   }
 
+  Future<List<TrackModel>> search(String query) async {
+    try {
+      final list = await _yt.search.search(query).timeout(_timeout);
+      final tracks = <TrackModel>[];
+      var index = 0;
+      for (final video in list) {
+        if (index >= 25) break;
+        tracks.add(
+          TrackModel(
+            id: video.id.value,
+            title: video.title,
+            author: video.author,
+            durationSeconds: video.duration?.inSeconds ?? 0,
+            thumbnailUrl: _highQualityThumbnail(video.id.value),
+            index: index,
+          ),
+        );
+        index++;
+      }
+      return tracks;
+    } catch (e) {
+      dev.log(
+        'Search failed for "$query": $e',
+        name: 'YoutubeRemoteDataSource',
+      );
+      return const <TrackModel>[];
+    }
+  }
+
   /// Returns the highest-quality YouTube thumbnail URL for a given video ID.
   /// Uses maxresdefault (1280×720) which is the best YouTube offers.
   String _highQualityThumbnail(String videoId) {
@@ -178,21 +198,6 @@ class YoutubeRemoteDataSource {
     String videoId, {
     int limit = 20,
   }) async {
-    try {
-      final upNext = await _ytMusic.getUpNexts(videoId).timeout(_timeout);
-      final tracks = upNext
-          .where((item) => item.videoId.isNotEmpty)
-          .take(limit)
-          .map(_trackFromUpNext)
-          .toList();
-      if (tracks.isNotEmpty) return _withIndexes(tracks);
-    } catch (e) {
-      dev.log(
-        'YouTube Music up next failed for $videoId, using related videos: $e',
-        name: 'YoutubeRemoteDataSource',
-      );
-    }
-
     final video = await _yt.videos.get(videoId).timeout(_timeout);
     final related = await _yt.videos.getRelatedVideos(video).timeout(_timeout);
     if (related == null || related.isEmpty) return <TrackModel>[];
@@ -337,8 +342,8 @@ class YoutubeRemoteDataSource {
     final related = await _yt.videos.getRelatedVideos(video);
     final videos = related?.take(maxResults).toList() ?? [];
     final tracks = <TrackModel>[];
-    for (var i = 0; i < results.length; i++) {
-      final video = results[i];
+    for (var i = 0; i < videos.length; i++) {
+      final video = videos[i];
       tracks.add(
         TrackModel(
           id: video.id.value,
@@ -353,181 +358,27 @@ class YoutubeRemoteDataSource {
     return tracks;
   }
 
-  List<TrackModel> _withIndexes(List<TrackModel> tracks) {
-    return [
-      for (var i = 0; i < tracks.length; i++)
-        TrackModel(
-          id: tracks[i].id,
-          title: tracks[i].title,
-          author: tracks[i].author,
-          durationSeconds: tracks[i].durationSeconds,
-          thumbnailUrl: tracks[i].thumbnailUrl,
-          index: i,
-        ),
-    ];
-  }
-
-  TrackModel _trackFromSong(ytmusic.SongDetailed song, int index) {
-    return TrackModel(
-      id: song.videoId,
-      title: song.name,
-      author: song.artist.name,
-      durationSeconds: song.duration ?? 0,
-      thumbnailUrl: _highQualityThumbnail(song.videoId),
-      index: index,
-      albumId: song.album?.albumId,
-      artistId: song.artist.artistId,
-    );
-  }
-
-  TrackModel _trackFromVideo(ytmusic.VideoDetailed video, int index) {
-    return TrackModel(
-      id: video.videoId,
-      title: video.name,
-      author: video.artist.name,
-      durationSeconds: video.duration ?? 0,
-      thumbnailUrl: _highQualityThumbnail(video.videoId),
-      index: index,
-      artistId: video.artist.artistId,
-    );
-  }
-
-  TrackModel _trackFromUpNext(ytmusic.UpNextsDetails item) {
-    return TrackModel(
-      id: item.videoId,
-      title: item.title,
-      author: item.artists.name,
-      durationSeconds: item.duration,
-      thumbnailUrl: _highQualityThumbnail(item.videoId),
-      index: 0,
-    );
-  }
-
-  String? _bestThumbnail(List<ytmusic.ThumbnailFull> thumbnails) {
-    if (thumbnails.isEmpty) return null;
-    final sorted = List<ytmusic.ThumbnailFull>.from(thumbnails)
-      ..sort((a, b) => (a.width * a.height).compareTo(b.width * b.height));
-    return sorted.last.url;
-  }
-
   Future<CategorizedSearchResults> searchAll(String query) async {
-    try {
-      final results = await _ytMusic.search(query).timeout(_timeout);
-      final songs = <TrackModel>[];
-      final videos = <TrackModel>[];
-      final albums = <AlbumResult>[];
-      final artists = <ArtistResult>[];
-      final playlists = <PlaylistResult>[];
-
-      for (final result in results) {
-        if (result is ytmusic.SongDetailed) {
-          songs.add(_trackFromSong(result, songs.length));
-        } else if (result is ytmusic.VideoDetailed) {
-          videos.add(_trackFromVideo(result, videos.length));
-        } else if (result is ytmusic.AlbumDetailed) {
-          albums.add(
-            AlbumResult(
-              id: result.albumId,
-              title: result.name,
-              artist: result.artist.name,
-              artistId: result.artist.artistId,
-              year: result.year,
-              thumbnailUrl: _bestThumbnail(result.thumbnails),
-            ),
-          );
-        } else if (result is ytmusic.ArtistDetailed) {
-          artists.add(
-            ArtistResult(
-              id: result.artistId,
-              name: result.name,
-              thumbnailUrl: _bestThumbnail(result.thumbnails),
-            ),
-          );
-        } else if (result is ytmusic.PlaylistDetailed) {
-          playlists.add(
-            PlaylistResult(
-              id: result.playlistId,
-              title: result.name,
-              artist: result.artist.name,
-              thumbnailUrl: _bestThumbnail(result.thumbnails),
-            ),
-          );
-        }
-      }
-
-      return CategorizedSearchResults(
-        songs: songs.map((m) => m.toEntity()).toList(),
-        videos: videos.map((m) => m.toEntity()).toList(),
-        albums: albums,
-        artists: artists,
-        playlists: playlists,
-      );
-    } catch (e) {
-      dev.log(
-        'Categorized search failed for "$query": $e',
-        name: 'YoutubeRemoteDataSource',
-      );
-      return const CategorizedSearchResults();
-    }
+    // The YouTube Music API is not available in this build. Return empty
+    // results so the UI degrades gracefully while the regular YouTube search
+    // (via youtube_explode_dart) is used in [search].
+    return const CategorizedSearchResults();
   }
 
   Future<AlbumDetailResult> getAlbum(String albumId) async {
-    final album = await _ytMusic.getAlbum(albumId).timeout(_timeout);
-    final tracks = <TrackModel>[];
-    for (var i = 0; i < album.songs.length; i++) {
-      final song = album.songs[i];
-      tracks.add(_trackFromSong(song, i));
-    }
-    return AlbumDetailResult(
-      id: album.playlistId,
-      title: album.name,
-      artist: album.artist.name,
-      artistId: album.artist.artistId,
-      year: album.year,
-      thumbnailUrl: _bestThumbnail(album.thumbnails),
-      tracks: tracks.map((m) => m.toEntity()).toList(),
+    // Album detail powered by the YouTube Music API is not available.
+    return const AlbumDetailResult(
+      id: '',
+      title: 'Albums unavailable',
+      artist: '',
     );
   }
 
   Future<ArtistDetailResult> getArtist(String artistId) async {
-    final artist = await _ytMusic.getArtist(artistId).timeout(_timeout);
-    final topSongs = <TrackModel>[];
-    for (var i = 0; i < artist.topSongs.length; i++) {
-      topSongs.add(_trackFromSong(artist.topSongs[i], i));
-    }
-    final albums = <AlbumResult>[];
-    for (final album in artist.topAlbums) {
-      albums.add(
-        AlbumResult(
-          id: album.albumId,
-          title: album.name,
-          artist: artist.name,
-          artistId: artistId,
-          year: album.year,
-          thumbnailUrl: _bestThumbnail(album.thumbnails),
-        ),
-      );
-    }
-    final singles = <AlbumResult>[];
-    for (final single in artist.topSingles) {
-      singles.add(
-        AlbumResult(
-          id: single.albumId,
-          title: single.name,
-          artist: artist.name,
-          artistId: artistId,
-          year: single.year,
-          thumbnailUrl: _bestThumbnail(single.thumbnails),
-        ),
-      );
-    }
-    return ArtistDetailResult(
-      id: artist.artistId,
-      name: artist.name,
-      thumbnailUrl: _bestThumbnail(artist.thumbnails),
-      topSongs: topSongs.map((m) => m.toEntity()).toList(),
-      albums: albums,
-      singles: singles,
+    // Artist detail powered by the YouTube Music API is not available.
+    return const ArtistDetailResult(
+      id: '',
+      name: 'Artist unavailable',
     );
   }
 

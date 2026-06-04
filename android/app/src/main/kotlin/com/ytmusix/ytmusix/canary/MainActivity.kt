@@ -1,4 +1,4 @@
-package com.ytmusix.ytmusix
+package com.ytmusix.ytmusix.canary
 
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 

@@ -1,6 +1,6 @@
 # ytmusix - YouTube Music Streamer
 
-A Flutter mobile app that streams audio from public YouTube playlists, single videos, and mixes. No backend, no ads. Built for Android and iOS with a modern dark music-player interface.
+A Flutter mobile app that streams audio from public YouTube playlists, single videos, and mixes. No backend, no ads. Built for Android only with a modern dark music-player interface.
 
 ## Features
 
@@ -16,7 +16,9 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 
 ### Import & Search
 - **YouTube search** — search YouTube directly from the app, play results instantly
-- **URL import** — paste a video, playlist, or mix URL to add to your library
+- **Smart URL import** — paste a video, playlist, shorts, or music link; automatically detected via switch-based parser
+- **Instant video playback** — single video and shorts links play audio immediately without opening a playlist view
+- **Playlist import** — playlist and mix URLs open the playlist detail screen for browsing
 - **Auto-save to library** — searched and played tracks are automatically saved to your homescreen as single-track playlists
 
 ### Downloads & Cache
@@ -57,13 +59,12 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 | Secure storage | flutter_secure_storage |
 | Downloads | path_provider + http |
 | Auth | WebView cookie extraction |
-| Platforms | Android + iOS |
+| Platforms | Android |
 
 ## Prerequisites
 
 - Flutter SDK ^3.12.0
 - Android device/emulator for Android builds
-- Xcode and an iOS Simulator for iOS simulator builds
 
 ## Setup
 
@@ -111,34 +112,9 @@ flutter build apk --release
 
 Output: `build/app/outputs/flutter-apk/app-release.apk` (~60MB)
 
-A prebuilt release APK is also available at the project root as [`ytmusix.apk`](ytmusix.apk).
-
-### iOS Simulator
-
-Launch a simulator:
-
-```bash
-flutter emulators --launch apple_ios_simulator
-```
-
-Build for the iOS simulator:
-
-```bash
-flutter build ios --simulator
-```
-
-Run on a booted simulator:
-
-```bash
-flutter run -d <ios-simulator-id>
-```
-
-Output: `build/ios/iphonesimulator/Runner.app`
-
 ## Project Structure
 
 ```
-ios/                               # Flutter iOS host project
 lib/
 ├── app.dart                        # App entry point + theme
 ├── main.dart                       # DI + AudioService.init
@@ -152,7 +128,8 @@ lib/
 │   │   └── app_theme.dart          # Dark Spotify-inspired theme
 │   └── utils/
 │       ├── format_duration.dart
-│       └── network_utils.dart      # Redirect resolution
+│       ├── network_utils.dart      # Redirect resolution
+│       └── youtube_link_parser.dart # Switch-based URL type detection
 ├── domain/
 │   ├── entities/
 │   │   ├── playlist.dart
@@ -211,7 +188,6 @@ _(No tests currently — test directory removed during refactoring.)_
 
 ### App
 - **Pub cache patch** — overwritten when `flutter pub upgrade` runs; must be re-applied manually.
-- **iOS Swift Package Manager notice** — Flutter currently warns that `flutter_secure_storage` does not support Swift Package Manager for iOS yet. This is a future-warning, not a current build blocker.
 - **Android Kotlin Gradle Plugin notice** — Flutter currently warns that app/plugin Kotlin Gradle Plugin usage should migrate to Built-in Kotlin for future Flutter versions. This is a future-warning, not a current build blocker.
 - **Samsung GPU `BufferQueue` timeout** — harmless Adreno driver spam in logcat on Exynos devices; does not affect playback.
 

@@ -349,13 +349,20 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  Future<String> getVideoUrl(
-    Track track, {
+  Future<void> playFromQueue(
+    int index, {
     AudioQuality quality = AudioQuality.low,
   }) async {
     if (index < 0 || index >= _queue.length) return;
     _currentIndex = index;
     await playTrack(_queue[index], quality: quality);
+  }
+
+  Future<String> getVideoUrl(
+    Track track, {
+    AudioQuality quality = AudioQuality.low,
+  }) async {
+    return _audioRepository.getAudioUrl(track, quality: quality.name);
   }
 
   Future<void> togglePlayPause() async {
@@ -443,6 +450,12 @@ class PlayerProvider extends ChangeNotifier {
     _position = Duration.zero;
     _bufferedPosition = Duration.zero;
     notifyListeners();
+  }
+
+  Future<void> _fetchAutoplayRecommendations() async {
+    // Autoplay recommendations are powered by the YouTube Music API which is
+    // currently disabled. Fall back to stopping playback when the queue ends.
+    await stop();
   }
 
   Future<void> clearQueue() async {

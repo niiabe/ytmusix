@@ -11,6 +11,8 @@ import 'service/audio_handler.dart';
 import 'service/download_service.dart';
 import 'presentation/providers/download_provider.dart';
 import 'presentation/providers/settings_provider.dart';
+import 'presentation/providers/chart_provider.dart';
+import 'service/chart_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,12 +65,15 @@ Future<void> main() async {
     final downloadProvider = DownloadProvider(downloadService);
     await downloadProvider.init();
 
+    final chartProvider = ChartProvider(ChartService());
+
     runApp(YTMusixApp(
       playlistRepository: playlistRepository,
       audioRepository: audioRepository,
       downloadProvider: downloadProvider,
       settingsProvider: settingsProvider,
       audioHandler: audioHandler,
+      chartProvider: chartProvider,
     ));
   } catch (e) {
     runApp(

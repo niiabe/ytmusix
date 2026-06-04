@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Removed iOS and macOS host projects; the app is Android-only.
+- Removed iOS configuration from `flutter_launcher_icons` and `flutter_native_splash`.
+- Cleaned iOS references and the iOS Simulator build section from the README.
+
+## 1.4.3
+
+- Added YouTube link parser with switch-based URL type detection for videos, playlists, shorts, and music links.
+- Single video and shorts links now play audio immediately instead of opening a playlist view.
+- Added channel link detection with clear unsupported feedback.
+- Fixed DatabaseException on fresh installs where the `tracks` table was missing the `albumId` and `artistId` columns (DB version bumped to 8 with idempotent migration).
+
 ## 1.4.2
 
 - Fixed bottom layout overflow on the Now Playing FAB widget.

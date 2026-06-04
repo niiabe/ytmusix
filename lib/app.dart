@@ -7,6 +7,7 @@ import 'presentation/providers/player_provider.dart';
 import 'presentation/providers/playlist_provider.dart';
 import 'presentation/providers/download_provider.dart';
 import 'presentation/providers/settings_provider.dart';
+import 'presentation/providers/chart_provider.dart';
 import 'service/audio_handler.dart';
 import 'presentation/screens/home_screen.dart';
 
@@ -16,6 +17,7 @@ class YTMusixApp extends StatelessWidget {
   final DownloadProvider downloadProvider;
   final SettingsProvider settingsProvider;
   final MusicAudioHandler audioHandler;
+  final ChartProvider chartProvider;
 
   const YTMusixApp({
     super.key,
@@ -24,6 +26,7 @@ class YTMusixApp extends StatelessWidget {
     required this.downloadProvider,
     required this.settingsProvider,
     required this.audioHandler,
+    required this.chartProvider,
   });
 
   @override
@@ -43,6 +46,9 @@ class YTMusixApp extends StatelessWidget {
         ),
         ChangeNotifierProvider.value(
           value: downloadProvider,
+        ),
+        ChangeNotifierProvider.value(
+          value: chartProvider,
         ),
       ],
       child: MaterialApp(

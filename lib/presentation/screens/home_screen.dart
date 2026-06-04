@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/playlist_sort_mode.dart';
+import '../../core/utils/youtube_link_parser.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
 import '../providers/playlist_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/chart_provider.dart';
 import '../widgets/pixel_logo.dart';
 import '../widgets/now_playing_fab.dart';
 import '../widgets/track_action_sheet.dart';
@@ -33,6 +35,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_homeTab == 3) return 'podcasts';
     return null;
   }
+
+  bool get _isFavoritesTab => _homeTab == 4;
+  bool get _isPlaylistTab => _homeTab == 0;
 
   @override
   void initState() {
@@ -86,6 +91,66 @@ class _HomeScreenState extends State<HomeScreen> {
     if (text == null || text.isEmpty) return;
     if (!context.mounted) return;
 
+    final parsed = YoutubeLinkParser.parse(text);
+
+    switch (parsed.type) {
+      case YoutubeLinkType.video:
+      case YoutubeLinkType.shorts:
+      case YoutubeLinkType.musicVideo:
+        if (parsed.videoId == null) {
+          _showError(context, 'Could not extract video ID');
+          return;
+        }
+        _playVideoLink(context, parsed.videoId!, text);
+      case YoutubeLinkType.playlist:
+        _loadPlaylistLink(context, text);
+      case YoutubeLinkType.channel:
+        _showError(context, 'Channel links are not supported yet');
+      case YoutubeLinkType.unknown:
+        _showError(context, 'Unrecognized YouTube link');
+    }
+  }
+
+  Future<void> _playVideoLink(
+    BuildContext context,
+    String videoId,
+    String input,
+  ) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Loading video...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final playlistProvider = context.read<PlaylistProvider>();
+      final playlist = await playlistProvider.fetchFromUrl(input);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (playlist == null || playlist.tracks.isEmpty) {
+        _showError(context, playlistProvider.error ?? 'Could not load video');
+        return;
+      }
+
+      final player = context.read<PlayerProvider>();
+      final quality = context.read<SettingsProvider>().audioQuality;
+      player.setQueue(playlist.tracks, startIndex: 0);
+      player.playTrack(playlist.tracks.first, quality: quality);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PlayerScreen()),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      _showError(context, 'Failed to load video: $e');
+    }
+  }
+
+  Future<void> _loadPlaylistLink(BuildContext context, String text) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Loading $text...'),
@@ -105,13 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.error ?? 'Failed to load link'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(context, provider.error ?? 'Failed to load link');
     }
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -307,8 +373,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   Widget _buildContent(BuildContext context) {
-    return Consumer3<PlaylistProvider, PlayerProvider, DownloadProvider>(
-      builder: (context, provider, playerProvider, downloadProvider, _) {
+    return Consumer4<PlaylistProvider, PlayerProvider, DownloadProvider, ChartProvider>(
+      builder: (context, provider, playerProvider, downloadProvider, chartProvider, _) {
         final feedKey = _activeFeedKey;
         final feedTracks = feedKey == null
             ? const <Track>[]
