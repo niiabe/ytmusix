@@ -46,27 +46,261 @@ class PlayerScreen extends StatelessWidget {
                 children: [
                   _BlurredArtworkBackground(imageUrl: track.thumbnailUrl),
                   SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-                      child: Column(
-                        children: [
-                          _buildPlayerHeader(context, player),
-                          const Spacer(),
-                          _Artwork(imageUrl: track.thumbnailUrl),
-                          const SizedBox(height: 32),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      track.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isAudio = _playbackMode == _PlaybackMode.audio;
+                        final compact = constraints.maxHeight < 760;
+                        final isWide = constraints.maxWidth > 720;
+                        if (isWide) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(36, 24, 36, 24),
+                            child: Column(
+                              children: [
+                                _buildPlayerHeader(context, player, track),
+                                Expanded(
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        flex: 5,
+                                        child: Center(
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 440,
+                                              maxHeight: 440,
+                                            ),
+                                            child: AnimatedSwitcher(
+                                              duration: const Duration(milliseconds: 220),
+                                              child: isAudio
+                                                  ? _Artwork(
+                                                      key: const ValueKey('audio-artwork'),
+                                                      imageUrl: track.thumbnailUrl,
+                                                    )
+                                                  : _InlineVideoPlayer(
+                                                      key: ValueKey('video-${track.id}'),
+                                                      track: track,
+                                                    ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 48),
+                                      Expanded(
+                                        flex: 5,
+                                        child: Center(
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 480,
+                                            ),
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            track.title,
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: const TextStyle(
+                                                              fontSize: 26,
+                                                              fontWeight: FontWeight.w900,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 8),
+                                                          Text(
+                                                            track.author ?? '',
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: const TextStyle(
+                                                              color: Colors.white54,
+                                                              fontSize: 13,
+                                                              fontWeight: FontWeight.w700,
+                                                              letterSpacing: 1.2,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      icon: Icon(
+                                                        Icons.compare_arrows_rounded,
+                                                        color: settings.crossfadeEnabled
+                                                            ? Colors.greenAccent
+                                                            : Colors.white54,
+                                                      ),
+                                                      tooltip: 'Crossfade (7s)',
+                                                      onPressed: () {
+                                                        final nextVal = !settings.crossfadeEnabled;
+                                                        settings.setCrossfadeEnabled(nextVal);
+                                                        player.setCrossfadeEnabled(nextVal);
+                                                      },
+                                                    ),
+                                                    IconButton(
+                                                      icon: Icon(
+                                                        isFav
+                                                            ? Icons.favorite_rounded
+                                                            : Icons.favorite_border_rounded,
+                                                        color: Colors.white,
+                                                      ),
+                                                      tooltip: isFav
+                                                          ? 'Remove from favorites'
+                                                          : 'Add to favorites',
+                                                      onPressed: () => playlistProvider.toggleFavorite(track),
+                                                    ),
+                                                  ],
+                                                ),
+                                                if (isAudio) ...[
+                                                  const SizedBox(height: 36),
+                                                  _SeekWaveform(
+                                                    position: player.position,
+                                                    duration: player.duration,
+                                                    bufferedPosition: player.bufferedPosition,
+                                                    onSeek: player.seekTo,
+                                                  ),
+                                                  const SizedBox(height: 28),
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      _ControlButton(
+                                                        icon: Icons.shuffle_rounded,
+                                                        active: player.shuffleMode,
+                                                        onPressed: player.toggleShuffle,
+                                                      ),
+                                                      _ControlButton(
+                                                        icon: Icons.skip_previous_rounded,
+                                                        onPressed: player.previous,
+                                                      ),
+                                                      player.isLoading
+                                                          ? const SizedBox(
+                                                              width: 62,
+                                                              height: 62,
+                                                              child: CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                              ),
+                                                            )
+                                                          : SizedBox(
+                                                              width: 64,
+                                                              height: 64,
+                                                              child: IconButton(
+                                                                style: IconButton.styleFrom(
+                                                                  backgroundColor: Colors.white,
+                                                                  foregroundColor: Colors.black,
+                                                                  shape: const CircleBorder(),
+                                                                ),
+                                                                icon: Icon(
+                                                                  player.isPlaying
+                                                                      ? Icons.pause_rounded
+                                                                      : Icons.play_arrow_rounded,
+                                                                  size: 34,
+                                                                ),
+                                                                onPressed: player.togglePlayPause,
+                                                              ),
+                                                            ),
+                                                      _ControlButton(
+                                                        icon: Icons.skip_next_rounded,
+                                                        onPressed: player.currentIndex + 1 < player.queue.length
+                                                            ? () => player.next()
+                                                            : null,
+                                                      ),
+                                                      _ControlButton(
+                                                        icon: _repeatIconData(player.repeatMode),
+                                                        active: player.repeatMode != repeat.PlaybackRepeatMode.none,
+                                                        onPressed: player.cycleRepeatMode,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                                const SizedBox(height: 36),
+                                                _buildQuickActions(context, player, track),
+                                                if (player.error != null) ...[
+                                                  const SizedBox(height: 16),
+                                                  _PlayerErrorBanner(message: player.error!),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                12,
+                                24,
+                                compact ? 16 : 28,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildPlayerHeader(context, player, track),
+                                  SizedBox(
+                                    height: isAudio
+                                        ? (compact ? 18 : 28)
+                                        : (compact ? 24 : 42),
+                                  ),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    child: isAudio
+                                        ? _Artwork(
+                                            key: const ValueKey(
+                                              'audio-artwork',
+                                            ),
+                                            imageUrl: track.thumbnailUrl,
+                                          )
+                                        : _InlineVideoPlayer(
+                                            key: ValueKey('video-${track.id}'),
+                                            track: track,
+                                          ),
+                                  ),
+                                  SizedBox(height: isAudio ? 28 : 24),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              track.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              track.author ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 1.2,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                       IconButton(
                                         icon: Icon(
@@ -96,6 +330,77 @@ class PlayerScreen extends StatelessWidget {
                                             .toggleFavorite(track),
                                       ),
                                     ),
+                                    SizedBox(height: compact ? 24 : 30),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _ControlButton(
+                                          icon: Icons.shuffle_rounded,
+                                          active: player.shuffleMode,
+                                          onPressed: player.toggleShuffle,
+                                        ),
+                                        _ControlButton(
+                                          icon: Icons.skip_previous_rounded,
+                                          onPressed: player.previous,
+                                        ),
+                                        player.isLoading
+                                            ? const SizedBox(
+                                                width: 62,
+                                                height: 62,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : SizedBox(
+                                                width: 64,
+                                                height: 64,
+                                                child: IconButton(
+                                                  style: IconButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.white,
+                                                    foregroundColor:
+                                                        Colors.black,
+                                                    shape: const CircleBorder(),
+                                                  ),
+                                                  icon: Icon(
+                                                    player.isPlaying
+                                                        ? Icons.pause_rounded
+                                                        : Icons
+                                                              .play_arrow_rounded,
+                                                    size: 34,
+                                                  ),
+                                                  onPressed:
+                                                      player.togglePlayPause,
+                                                ),
+                                              ),
+                                        _ControlButton(
+                                          icon: Icons.skip_next_rounded,
+                                          onPressed:
+                                              player.currentIndex + 1 <
+                                                      player.queue.length
+                                                  ? () => player.next()
+                                                  : null,
+                                        ),
+                                        _ControlButton(
+                                          icon: _repeatIconData(
+                                            player.repeatMode,
+                                          ),
+                                          active:
+                                              player.repeatMode !=
+                                              repeat.PlaybackRepeatMode.none,
+                                          onPressed: player.cycleRepeatMode,
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: compact ? 18 : 22),
+                                  ] else
+                                    const SizedBox(height: 22),
+                                  _buildQuickActions(context, player, track),
+                                  if (player.error != null) ...[
+                                    const SizedBox(height: 12),
+                                    _PlayerErrorBanner(message: player.error!),
                                   ],
                                 ),
                               ),

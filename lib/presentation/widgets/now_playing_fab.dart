@@ -78,7 +78,7 @@ class _NowPlayingFabState extends State<NowPlayingFab>
         ),
         child: IntrinsicWidth(
           child: Container(
-            height: 64,
+            height: 72,
             constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(

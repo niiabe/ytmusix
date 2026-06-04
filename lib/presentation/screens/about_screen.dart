@@ -115,6 +115,10 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      '1.4.2',
+      'Fixed the bottom layout overflow on the Now Playing FAB, corrected the repeat and shuffle controls on the Now Playing screen, and resolved seekbar duration filling issues.',
+    ),
+    (
       '1.4.1',
       'Fixed background audio playback and track auto-play progression on Android devices, and introduced a toggleable 7-second crossfade feature on the Now Playing screen.',
     ),
