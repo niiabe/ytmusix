@@ -115,6 +115,14 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      'Unreleased',
+      'Rebranded to YTMusix Canary (Android-only). Replaced the play-triangle icon with a new bird/mascot mark. Added PlaylistProvider.searchSilently with a normalized 7-day cache so repeat lookups skip the network. Promoted getVideoUrl and getRecommendations to the AudioRepository interface. Cleaned up PlayerProvider. All tests pass (11/11) and flutter analyze is clean.',
+    ),
+    (
+      '1.4.3',
+      'Added a YouTube link parser with switch-based URL type detection for videos, playlists, shorts, and music links. Single video and shorts links now play audio immediately instead of opening a playlist view. Added channel link detection with clear unsupported feedback. Fixed DatabaseException on fresh installs by bumping the DB to version 8 with an idempotent migration.',
+    ),
+    (
       '1.4.2',
       'Fixed the bottom layout overflow on the Now Playing FAB, corrected the repeat and shuffle controls on the Now Playing screen, and resolved seekbar duration filling issues.',
     ),
@@ -124,7 +132,7 @@ class _ChangelogSection extends StatelessWidget {
     ),
     (
       '1.4.0',
-      'Added favorite collection support (playlists and albums), fully rebuilt iOS background playback auto-advance and dynamic island integration, resolved layout overflow bugs, and optimized the Now Playing FAB with dynamic sizing.',
+      'Added favorite collection support (playlists and albums), resolved layout overflow bugs, and optimized the Now Playing FAB with dynamic sizing.',
     ),
     (
       '1.3.0',
