@@ -44,7 +44,7 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 - **Expanded player** — full-screen now-playing view with large artwork, gradient background, waveform seek control, favorite action, and compact transport controls
 - **Modern secondary screens** — Search, Playlist, Settings, Login, track rows, and mini player share the same rounded dark visual language
 - **Mini player** — floating bottom player with artwork, queue access, transport controls, active progress, and buffered progress
-- **Dark theme** — music-app-inspired dark UI with custom pixel-art logo and green brand accent
+- **Dark theme** — music-app-inspired dark UI with a bird/mascot launcher icon and green brand accent (YTMusix Canary build)
 
 ## Tech Stack
 
@@ -70,8 +70,8 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 ## Setup
 
 ```bash
-git clone https://github.com/niiabe/ytmusix-flowos.git
-cd ytmusix-flowos
+git clone https://github.com/niiabe/ytmusix.git
+cd ytmusix
 flutter pub get
 ```
 
@@ -126,7 +126,7 @@ lib/
 │   │   ├── playlist_sort_mode.dart
 │   │   └── repeat_mode.dart
 │   ├── theme/
-│   │   └── app_theme.dart          # Dark Spotify-inspired theme
+│   │   └── app_theme.dart          # Dark music-app theme
 │   └── utils/
 │       ├── format_duration.dart
 │       ├── network_utils.dart      # Redirect resolution
@@ -134,7 +134,9 @@ lib/
 ├── domain/
 │   ├── entities/
 │   │   ├── playlist.dart
-│   │   └── video.dart              # Track entity
+│   │   ├── video.dart              # Track entity
+│   │   ├── chart_item.dart
+│   │   └── search_result_models.dart
 │   └── repositories/
 │       ├── audio_repository.dart
 │       └── playlist_repository.dart
@@ -157,25 +159,41 @@ lib/
 │   │   ├── player_screen.dart      # Full-screen waveform player
 │   │   ├── playlist_screen.dart    # Modern playlist detail
 │   │   ├── search_screen.dart      # YouTube search
-│   │   ├── settings_screen.dart    # Playback/login/storage settings
+│   │   ├── settings_screen.dart    # Top-level settings menu
+│   │   ├── playback_settings_screen.dart
+│   │   ├── storage_settings_screen.dart
+│   │   ├── youtube_settings_screen.dart
+│   │   ├── backup_settings_screen.dart
+│   │   ├── album_screen.dart       # Album detail with playback
+│   │   ├── artist_screen.dart      # Artist page
+│   │   ├── about_screen.dart       # Version + in-app changelog
+│   │   ├── licenses_screen.dart
+│   │   ├── contributors_screen.dart
 │   │   └── login_screen.dart       # WebView Google auth
 │   ├── providers/
 │   │   ├── player_provider.dart
 │   │   ├── playlist_provider.dart
 │   │   ├── download_provider.dart
-│   │   └── settings_provider.dart
+│   │   ├── settings_provider.dart
+│   │   └── chart_provider.dart
 │   └── widgets/
 │       ├── player_bar.dart
 │       ├── video_tile.dart
 │       ├── playlist_card.dart
 │       ├── now_playing_card.dart
+│       ├── now_playing_fab.dart
 │       ├── queue_sheet.dart
+│       ├── track_action_sheet.dart
 │       └── pixel_logo.dart
 └── service/
     ├── audio_handler.dart          # MusicAudioHandler (audio_service bridge)
     ├── auth_service.dart           # flutter_secure_storage cookies
-    └── download_service.dart       # Offline downloads with progress
+    ├── chart_service.dart          # Apple Music chart lookup + cache
+    ├── download_service.dart       # Offline downloads with progress
+    └── lyrics_service.dart         # LRC lyrics from lrclib.net
 ```
+
+Android build identity: `com.ytmusix.ytmusix.canary` (YTMusix Canary). Source icon in [`tool/icon.png`](tool/icon.png) is fed to `flutter_launcher_icons` and `flutter_native_splash` to regenerate all `mipmap-*` launcher icons and `drawable-*` splash screens.
 
 ## Testing
 

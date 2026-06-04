@@ -35,7 +35,6 @@
 ## 1.4.0
 
 - Added favorite collection support (playlists and albums).
-- Fully rebuilt iOS background playback auto-advance and dynamic island integration.
 - Resolved layout overflow bugs and optimized the Now Playing FAB with dynamic sizing.
 
 ## 1.3.0
