@@ -6,6 +6,7 @@
 - Removed iOS configuration from `flutter_launcher_icons` and `flutter_native_splash`.
 - Cleaned iOS references and the iOS Simulator build section from the README.
 - Rebrand: Android package/namespace/label updated to `YTMusix Canary` (`com.ytmusix.ytmusix.canary`).
+- New app icon: replaced the green play-triangle logo with a redesigned bird/mascot mark in `tool/icon.png`. Regenerated all Android launcher icons (`mipmap-*`) and native splash screens via `flutter_launcher_icons` and `flutter_native_splash`.
 - Added `PlaylistProvider.searchSilently` with a normalized in-memory cache and 7-day SharedPreferences persistence (`silent_search_cache_v1`), so repeated silent searches reuse results without hitting the network.
 - Added `Track.toJson` / `Track.fromJson` and a `single` getter on `CategorizedSearchResults` to support cached silent-search deserialization.
 - Promoted `AudioRepository.getVideoUrl` and `AudioRepository.getRecommendations` to the domain interface (impls already existed).
