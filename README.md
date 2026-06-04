@@ -16,6 +16,7 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 
 ### Import & Search
 - **YouTube search** — search YouTube directly from the app, play results instantly
+- **Silent search cache** — `PlaylistProvider.searchSilently` normalizes queries (trim + case + whitespace), serves repeat lookups from an in-memory map, and falls back to a 7-day SharedPreferences cache (`silent_search_cache_v1`) before hitting the network
 - **Smart URL import** — paste a video, playlist, shorts, or music link; automatically detected via switch-based parser
 - **Instant video playback** — single video and shorts links play audio immediately without opening a playlist view
 - **Playlist import** — playlist and mix URLs open the playlist detail screen for browsing
@@ -182,7 +183,13 @@ lib/
 flutter test
 ```
 
-_(No tests currently — test directory removed during refactoring.)_
+11 tests across 3 files, all passing:
+
+- `test/service/chart_service_test.dart` — Apple Ghana songs/albums caching, scoped Top 100 lookup, hot album playback
+- `test/presentation/providers/player_provider_test.dart` — queue init, shuffle, repeat, remove/reorder, sleep timer
+- `test/presentation/providers/playlist_provider_test.dart` — silent search cache deduplication
+
+`flutter analyze` is clean (no warnings, no errors).
 
 ## Known Issues
 

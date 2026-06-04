@@ -21,6 +21,8 @@ class CategorizedSearchResults {
       albums.isEmpty &&
       artists.isEmpty &&
       playlists.isEmpty;
+
+  Track? get single => songs.isNotEmpty ? songs.first : null;
 }
 
 class AlbumResult {

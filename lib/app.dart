@@ -40,8 +40,6 @@ class YTMusixApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => PlayerProvider(
             audioRepository,
-            downloadProvider: downloadProvider,
-            settingsProvider: settingsProvider,
           )..setAudioHandler(audioHandler),
         ),
         ChangeNotifierProvider.value(

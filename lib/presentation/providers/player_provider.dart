@@ -9,8 +9,6 @@ import '../../domain/entities/video.dart';
 import '../../domain/repositories/audio_repository.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../service/audio_handler.dart';
-import 'download_provider.dart';
-import 'settings_provider.dart';
 
 // ---------------------------------------------------------------------------
 // URL cache — maps trackId -> resolved stream URL so the next-track load
@@ -19,14 +17,8 @@ import 'settings_provider.dart';
 
 class PlayerProvider extends ChangeNotifier {
   final AudioRepository _audioRepository;
-  final DownloadProvider? _downloadProvider;
-  final SettingsProvider? _settingsProvider;
 
-  PlayerProvider(
-    this._audioRepository, {
-    this._downloadProvider,
-    this._settingsProvider,
-  }) {
+  PlayerProvider(this._audioRepository) {
     _skipNextSubscription = _audioRepository.onSkipNextRequested.listen((_) {
       next();
     });
@@ -58,7 +50,7 @@ class PlayerProvider extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isLoading = false;
   bool _shuffleMode = false;
-  bool _isAutoplaying = false;
+  final bool _isAutoplaying = false;
   repeat.PlaybackRepeatMode _repeatMode = repeat.PlaybackRepeatMode.none;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;

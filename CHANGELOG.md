@@ -5,6 +5,13 @@
 - Removed iOS and macOS host projects; the app is Android-only.
 - Removed iOS configuration from `flutter_launcher_icons` and `flutter_native_splash`.
 - Cleaned iOS references and the iOS Simulator build section from the README.
+- Rebrand: Android package/namespace/label updated to `YTMusix Canary` (`com.ytmusix.ytmusix.canary`).
+- Added `PlaylistProvider.searchSilently` with a normalized in-memory cache and 7-day SharedPreferences persistence (`silent_search_cache_v1`), so repeated silent searches reuse results without hitting the network.
+- Added `Track.toJson` / `Track.fromJson` and a `single` getter on `CategorizedSearchResults` to support cached silent-search deserialization.
+- Promoted `AudioRepository.getVideoUrl` and `AudioRepository.getRecommendations` to the domain interface (impls already existed).
+- Cleaned up `PlayerProvider`: removed unused `DownloadProvider` / `SettingsProvider` constructor parameters, dropped their imports, and marked `_isAutoplaying` as `final`.
+- Static analysis: `flutter analyze` reports no issues.
+- Tests: 11/11 passing (`chart_service`, `player_provider`, `playlist_provider`).
 
 ## 1.4.3
 

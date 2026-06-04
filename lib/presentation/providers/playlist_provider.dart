@@ -530,6 +530,80 @@ class PlaylistProvider extends ChangeNotifier {
     }
   }
 
+  Future<CategorizedSearchResults> searchSilently(String query) async {
+    final key = _normalizeSilentSearchKey(query);
+    if (key.isEmpty) return const CategorizedSearchResults();
+
+    final cached = _silentSearchCache[key];
+    if (cached != null) {
+      return _toCategorizedResults(cached);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getString('$_silentSearchCachePrefix:$key');
+      if (stored != null) {
+        final decoded = jsonDecode(stored) as Map<String, dynamic>;
+        final savedAt = DateTime.tryParse(decoded['savedAt'] as String? ?? '');
+        final isFresh = savedAt != null &&
+            DateTime.now().difference(savedAt) < _silentSearchCacheMaxAge;
+        if (isFresh) {
+          final tracks = (decoded['tracks'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(Track.fromJson)
+              .toList();
+          _silentSearchCache[key] = tracks;
+          return _toCategorizedResults(tracks);
+        }
+      }
+    } catch (e) {
+      dev.log(
+        'Failed to read silent search cache: $e',
+        name: 'PlaylistProvider',
+      );
+    }
+
+    final results = await _repository.search(query);
+    _silentSearchCache[key] = results;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '$_silentSearchCachePrefix:$key',
+        jsonEncode({
+          'savedAt': DateTime.now().toIso8601String(),
+          'tracks': results.map((t) => t.toJson()).toList(),
+        }),
+      );
+    } catch (e) {
+      dev.log(
+        'Failed to persist silent search cache: $e',
+        name: 'PlaylistProvider',
+      );
+    }
+
+    return _toCategorizedResults(results);
+  }
+
+  String _normalizeSilentSearchKey(String query) {
+    return query
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .join(' ');
+  }
+
+  CategorizedSearchResults _toCategorizedResults(List<Track> tracks) {
+    return CategorizedSearchResults(
+      songs: tracks,
+      videos: tracks,
+      albums: const [],
+      artists: const [],
+      playlists: const [],
+    );
+  }
+
   Future<void> loadHomeFeed(String key, {bool force = false}) async {
     if (!force && _homeFeeds.containsKey(key)) return;
     if (_loadingHomeFeeds.contains(key)) return;

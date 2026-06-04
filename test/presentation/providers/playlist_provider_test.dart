@@ -18,8 +18,8 @@ void main() {
     );
 
     expect(repository.searchCount, 1);
-    expect(first.single.id, 'track_1');
-    expect(second.single.id, 'track_1');
+    expect(first.single!.id, 'track_1');
+    expect(second.single!.id, 'track_1');
   });
 }
 
