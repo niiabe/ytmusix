@@ -116,7 +116,7 @@ class _ChangelogSection extends StatelessWidget {
   static const _items = [
     (
       'Unreleased',
-      'Rebranded to YTMusix Canary (Android-only). Replaced the play-triangle icon with a new bird/mascot mark. Added PlaylistProvider.searchSilently with a normalized 7-day cache so repeat lookups skip the network. Promoted getVideoUrl and getRecommendations to the AudioRepository interface. Cleaned up PlayerProvider. All tests pass (11/11) and flutter analyze is clean.',
+      'Rebranded to YTMusix Canary (Android-only). Replaced the play-triangle icon with a new bird/mascot mark. Added PlaylistProvider.searchSilently with a normalized 7-day cache so repeat lookups skip the network. Promoted getVideoUrl and getRecommendations to the AudioRepository interface. Smart autoplay: when the queue ends, related YouTube recommendations are appended and playback continues. Auto-hide controls on the Now Playing screen fade the transport row, lyrics, and quick actions after 3 s of inactivity; tap to toggle. Added a Copy YouTube link action on the track sheet so audio plays in-app while the video URL is ready for a browser. Cleaned up PlayerProvider. All tests pass (11/11) and flutter analyze is clean.',
     ),
     (
       '1.4.3',
