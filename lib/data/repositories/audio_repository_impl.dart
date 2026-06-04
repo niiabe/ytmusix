@@ -19,7 +19,7 @@ class AudioRepositoryImpl implements AudioRepository {
   });
 
   @override
-  Future<String> getAudioUrl(Track track, {String quality = 'medium'}) async {
+  Future<String> getAudioUrl(Track track, {String quality = 'low'}) async {
     final localPath = await _database.getDownloadedFilePath(track.id);
     if (localPath != null && File(localPath).existsSync()) {
       return localPath;
@@ -28,6 +28,20 @@ class AudioRepositoryImpl implements AudioRepository {
       await _database.removeDownloadedTrack(track.id);
     }
     return remoteDataSource.getAudioUrl(track.id, quality: quality);
+  }
+
+  @override
+  Future<String> getVideoUrl(Track track, {String quality = 'low'}) {
+    return remoteDataSource.getVideoUrl(track.id, quality: quality);
+  }
+
+  @override
+  Future<List<Track>> getRecommendations(Track seed, {int limit = 20}) async {
+    final recommendations = await remoteDataSource.getRecommendations(
+      seed.id,
+      limit: limit,
+    );
+    return recommendations.map((track) => track.toEntity()).toList();
   }
 
   @override
@@ -110,4 +124,7 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Stream<void> get onSkipPreviousRequested =>
       _handler.skipPreviousRequested.stream;
+
+  @override
+  Stream<dynamic> get mediaItemStream => _handler.mediaItem.stream;
 }

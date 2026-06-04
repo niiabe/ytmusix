@@ -12,6 +12,8 @@ import '../providers/player_provider.dart';
 import '../providers/playlist_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/queue_sheet.dart';
+import 'album_screen.dart';
+import 'artist_screen.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -66,17 +68,32 @@ class PlayerScreen extends StatelessWidget {
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      track.author ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.compare_arrows_rounded,
+                                          color: settings.crossfadeEnabled
+                                              ? Colors.greenAccent
+                                              : Colors.white54,
+                                        ),
+                                        tooltip: 'Crossfade (7s)',
+                                        onPressed: () {
+                                          final nextVal = !settings.crossfadeEnabled;
+                                          settings.setCrossfadeEnabled(nextVal);
+                                          player.setCrossfadeEnabled(nextVal);
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          isFav
+                                              ? Icons.favorite_rounded
+                                              : Icons.favorite_border_rounded,
+                                          color: Colors.white,
+                                        ),
+                                        tooltip: isFav
+                                            ? 'Remove from favorites'
+                                            : 'Add to favorites',
+                                        onPressed: () => playlistProvider
+                                            .toggleFavorite(track),
                                       ),
                                     ),
                                   ],
@@ -280,6 +297,43 @@ class PlayerScreen extends StatelessWidget {
                   );
                 },
         ),
+      if (track?.artistId != null)
+        _MoreAction(
+          icon: Icons.person_outline_rounded,
+          title: 'Go to artist',
+          subtitle: track!.author ?? 'View artist page',
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ArtistScreen(
+                  artistId: track.artistId!,
+                  name: track.author,
+                ),
+              ),
+            );
+          },
+        ),
+      if (track?.albumId != null)
+        _MoreAction(
+          icon: Icons.album_outlined,
+          title: 'Go to album',
+          subtitle: 'View album tracks',
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AlbumScreen(
+                  albumId: track!.albumId!,
+                  artist: track.author,
+                  artistId: track.artistId,
+                ),
+              ),
+            );
+          },
+        ),
       _MoreAction(
         icon: player.isSleepTimerActive
             ? Icons.timer_off_rounded
@@ -313,52 +367,73 @@ class PlayerScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(14),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF171717),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withAlpha(14)),
-        ),
+      isScrollControlled: true,
+      builder: (ctx) => Material(
+        color: Colors.transparent,
         child: SafeArea(
           top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Now playing',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              decoration: BoxDecoration(
+                color: const Color(0xFF171717),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withAlpha(14)),
               ),
-              const SizedBox(height: 12),
-              ...items.map(
-                (item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: item.destructive
-                          ? Colors.redAccent.withAlpha(28)
-                          : Colors.white.withAlpha(12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      item.icon,
-                      color: item.destructive ? Colors.redAccent : Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Now playing',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ...items.map(
+                            (item) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: item.destructive
+                                      ? Colors.redAccent.withAlpha(28)
+                                      : Colors.white.withAlpha(12),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(
+                                  item.icon,
+                                  color: item.destructive
+                                      ? Colors.redAccent
+                                      : Colors.white,
+                                ),
+                              ),
+                              title: Text(
+                                item.title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800),
+                              ),
+                              subtitle: Text(item.subtitle),
+                              enabled: item.onTap != null,
+                              onTap: item.onTap,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  title: Text(
-                    item.title,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(item.subtitle),
-                  enabled: item.onTap != null,
-                  onTap: item.onTap,
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

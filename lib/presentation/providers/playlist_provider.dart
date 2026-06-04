@@ -4,6 +4,7 @@ import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/constants/playlist_sort_mode.dart';
+import '../../domain/entities/search_result_models.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
 import '../../domain/repositories/playlist_repository.dart';
@@ -19,10 +20,29 @@ class PlaylistProvider extends ChangeNotifier {
   String? _error;
   PlaylistSortMode _sortMode = PlaylistSortMode.dateAdded;
   Set<String> _favoriteIds = {};
+  List<Track> _favoriteTracks = [];
+  List<Playlist> _favoriteCollections = [];
+  Set<String> _favoriteCollectionIds = {};
   final Map<String, List<Track>> _homeFeeds = {};
   final Set<String> _loadingHomeFeeds = {};
+  final Map<String, List<Track>> _silentSearchCache = {};
+
+  static const _silentSearchCachePrefix = 'silent_search_cache_v1';
+  static const _silentSearchCacheMaxAge = Duration(days: 7);
+  static const _searchHistoryKey = 'search_history_v1';
+  static const _maxSearchHistory = 20;
+
+  List<String> _searchHistory = [];
+  CategorizedSearchResults? _categorizedResults;
+  bool _isCategorizedSearching = false;
 
   PlaylistSortMode get sortMode => _sortMode;
+  List<String> get searchHistory => List.unmodifiable(_searchHistory);
+  CategorizedSearchResults? get categorizedResults => _categorizedResults;
+  bool get isCategorizedSearching => _isCategorizedSearching;
+  List<Track> get favoriteTracks => _favoriteTracks;
+  List<Playlist> get favoriteCollections => _favoriteCollections;
+  Set<String> get favoriteCollectionIds => _favoriteCollectionIds;
 
   List<Playlist> get playlists {
     final sorted = List<Playlist>.from(_playlists);
@@ -137,21 +157,28 @@ class PlaylistProvider extends ChangeNotifier {
 
   bool isFavorite(String trackId) => _favoriteIds.contains(trackId);
 
-  Future<void> loadFavoriteIds() async {
+  Future<void> loadFavoriteTracks() async {
     try {
-      _favoriteIds = await _repository.getFavoriteIds();
+      _favoriteTracks = await _repository.getFavoriteTracks();
+      _favoriteIds = _favoriteTracks.map((t) => t.id).toSet();
       notifyListeners();
     } catch (e) {
-      dev.log('Failed to load favorite IDs: $e', name: 'PlaylistProvider');
+      dev.log('Failed to load favorite tracks: $e', name: 'PlaylistProvider');
     }
+  }
+
+  Future<void> loadFavoriteIds() async {
+    await loadFavoriteTracks();
   }
 
   Future<void> toggleFavorite(Track track) async {
     final wasFavorite = _favoriteIds.contains(track.id);
     if (wasFavorite) {
       _favoriteIds.remove(track.id);
+      _favoriteTracks.removeWhere((t) => t.id == track.id);
     } else {
       _favoriteIds.add(track.id);
+      _favoriteTracks.insert(0, track);
     }
     notifyListeners();
     try {
@@ -159,10 +186,61 @@ class PlaylistProvider extends ChangeNotifier {
     } catch (e) {
       if (wasFavorite) {
         _favoriteIds.add(track.id);
+        _favoriteTracks.insert(0, track);
       } else {
         _favoriteIds.remove(track.id);
+        _favoriteTracks.removeWhere((t) => t.id == track.id);
       }
       notifyListeners();
+    }
+  }
+
+  bool isCollectionFavorite(String collectionId) => _favoriteCollectionIds.contains(collectionId);
+
+  Future<void> loadFavoriteCollections() async {
+    try {
+      _favoriteCollections = await _repository.getFavoriteCollections();
+      _favoriteCollectionIds = _favoriteCollections.map((c) => c.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      dev.log('Failed to load favorite collections: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type) async {
+    final wasFavorite = _favoriteCollectionIds.contains(playlist.id);
+    final updatedPlaylist = Playlist(
+      id: playlist.id,
+      title: playlist.title,
+      description: playlist.description,
+      thumbnailUrl: playlist.thumbnailUrl,
+      author: playlist.author,
+      videoCount: playlist.videoCount,
+      tracks: playlist.tracks,
+      type: type,
+    );
+
+    if (wasFavorite) {
+      _favoriteCollectionIds.remove(playlist.id);
+      _favoriteCollections.removeWhere((c) => c.id == playlist.id);
+    } else {
+      _favoriteCollectionIds.add(playlist.id);
+      _favoriteCollections.insert(0, updatedPlaylist);
+    }
+    notifyListeners();
+
+    try {
+      await _repository.toggleFavoriteCollection(playlist, type);
+    } catch (e) {
+      if (wasFavorite) {
+        _favoriteCollectionIds.add(playlist.id);
+        _favoriteCollections.insert(0, updatedPlaylist);
+      } else {
+        _favoriteCollectionIds.remove(playlist.id);
+        _favoriteCollections.removeWhere((c) => c.id == playlist.id);
+      }
+      notifyListeners();
+      dev.log('Failed to toggle favorite collection: $e', name: 'PlaylistProvider');
     }
   }
 
@@ -484,5 +562,84 @@ class PlaylistProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> loadSearchHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _searchHistory = prefs.getStringList(_searchHistoryKey) ?? [];
+      notifyListeners();
+    } catch (e) {
+      dev.log('Failed to load search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> addSearchHistory(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    _searchHistory.remove(trimmed);
+    _searchHistory.insert(0, trimmed);
+    if (_searchHistory.length > _maxSearchHistory) {
+      _searchHistory = _searchHistory.sublist(0, _maxSearchHistory);
+    }
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_searchHistoryKey, _searchHistory);
+    } catch (e) {
+      dev.log('Failed to save search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> removeSearchHistory(String query) async {
+    _searchHistory.remove(query);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_searchHistoryKey, _searchHistory);
+    } catch (e) {
+      dev.log('Failed to remove search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<void> clearSearchHistory() async {
+    _searchHistory.clear();
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_searchHistoryKey);
+    } catch (e) {
+      dev.log('Failed to clear search history: $e', name: 'PlaylistProvider');
+    }
+  }
+
+  Future<CategorizedSearchResults> searchAll(String query) async {
+    _isCategorizedSearching = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final results = await _repository.searchAll(query);
+      _categorizedResults = results;
+      return results;
+    } catch (e) {
+      _error = e.toString();
+      return const CategorizedSearchResults();
+    } finally {
+      _isCategorizedSearching = false;
+      notifyListeners();
+    }
+  }
+
+  void clearCategorizedResults() {
+    _categorizedResults = null;
+    notifyListeners();
+  }
+
+  Future<AlbumDetailResult> getAlbum(String playlistId) async {
+    return _repository.getAlbum(playlistId);
+  }
+
+  Future<ArtistDetailResult> getArtist(String artistId) async {
+    return _repository.getArtist(artistId);
   }
 }

@@ -13,9 +13,9 @@ class NetworkUtils {
       req.followRedirects = false;
       final resp = await client.send(req);
       final status = resp.statusCode;
-      await resp.stream.drain();
       if (status >= 300 && status < 400) {
         final location = resp.headers['location'];
+        await resp.stream.drain();
         if (location == null) break;
         current = Uri.parse(location).isAbsolute
             ? location

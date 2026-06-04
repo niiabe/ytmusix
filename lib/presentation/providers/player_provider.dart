@@ -2,15 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/audio_quality.dart';
 import '../../core/constants/repeat_mode.dart' as repeat;
 import '../../domain/entities/video.dart';
 import '../../domain/repositories/audio_repository.dart';
+import 'package:audio_service/audio_service.dart';
 import '../../service/audio_handler.dart';
 import 'download_provider.dart';
 import 'settings_provider.dart';
+
+// ---------------------------------------------------------------------------
+// URL cache — maps trackId -> resolved stream URL so the next-track load
+// is instant when the URL was prefetched during the current track's playback.
+// ---------------------------------------------------------------------------
 
 class PlayerProvider extends ChangeNotifier {
   final AudioRepository _audioRepository;
@@ -30,6 +35,20 @@ class PlayerProvider extends ChangeNotifier {
     ) {
       previous();
     });
+    _mediaItemSub = _audioRepository.mediaItemStream.listen((item) {
+      if (item == null) return;
+      final index = _queue.indexWhere((t) => t.id == item.id);
+      if (index != -1 && _currentIndex != index) {
+        _currentIndex = index;
+        _currentTrack = _queue[index];
+        _position = Duration.zero;
+        _duration = item.duration ?? _currentTrack!.duration;
+        notifyListeners();
+        for (final cb in _trackChangedListeners) {
+          cb();
+        }
+      }
+    });
   }
 
   Track? _currentTrack;
@@ -46,16 +65,21 @@ class PlayerProvider extends ChangeNotifier {
   Duration _bufferedPosition = Duration.zero;
   String? _error;
   String? _currentPlaylistId;
-  StreamSubscription? _completionSubscription;
   StreamSubscription? _skipNextSubscription;
   StreamSubscription? _skipPrevSubscription;
+  StreamSubscription? _mediaItemSub;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<Duration>? _bufferedPositionSub;
+  StreamSubscription? _playbackStateSub;
 
   Timer? _sleepTimer;
   Timer? _sleepTimerTick;
   Duration? _sleepTimerRemaining;
+
+  /// Preloaded stream URL cache. Key = track.id, value = resolved URL.
+  final Map<String, String> _urlCache = {};
+  bool _isPrebuffering = false;
 
   final List<VoidCallback> _trackChangedListeners = [];
 
@@ -132,6 +156,7 @@ class PlayerProvider extends ChangeNotifier {
       _queue.removeAt(index);
       if (index < _currentIndex) _currentIndex--;
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -149,6 +174,7 @@ class PlayerProvider extends ChangeNotifier {
         _currentIndex++;
       }
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -175,6 +201,7 @@ class PlayerProvider extends ChangeNotifier {
     _originalQueue = null;
     _shuffleMode = false;
     _error = null;
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -203,6 +230,7 @@ class PlayerProvider extends ChangeNotifier {
       }
       _shuffleMode = true;
     }
+    _syncQueueToHandler();
     notifyListeners();
   }
 
@@ -211,6 +239,14 @@ class PlayerProvider extends ChangeNotifier {
         repeat.PlaybackRepeatMode.values[(_repeatMode.index + 1) %
             repeat.PlaybackRepeatMode.values.length];
     notifyListeners();
+    if (_audioHandler != null) {
+      final mode = switch (_repeatMode) {
+        repeat.PlaybackRepeatMode.none => AudioServiceRepeatMode.none,
+        repeat.PlaybackRepeatMode.one => AudioServiceRepeatMode.one,
+        repeat.PlaybackRepeatMode.all => AudioServiceRepeatMode.all,
+      };
+      _audioHandler!.setRepeatMode(mode);
+    }
   }
 
   void startSleepTimer(Duration duration) {
@@ -252,24 +288,26 @@ class PlayerProvider extends ChangeNotifier {
     _currentTrack = track;
     _position = Duration.zero;
     _duration = track.duration;
-    _bufferedPosition = Duration.zero;
     _stopPolling();
-    _completionSubscription?.cancel();
     notifyListeners();
-
+ 
     try {
       _addToRecentlyPlayed(track);
-      final audioUrl = await _audioRepository.getAudioUrl(
-        track,
-        quality: quality.name,
-      );
+      // Check preload cache first — avoids the 2-5s URL resolution wait.
+      final cachedUrl = _urlCache.remove(track.id);
+      final audioUrl = cachedUrl ??
+          await _audioRepository.getAudioUrl(
+            track,
+            quality: quality.name,
+          );
       await _audioRepository.playTrack(track, audioUrl);
       _isPlaying = true;
       _startPolling();
-      _listenForCompletion();
       for (final cb in _trackChangedListeners) {
         cb();
       }
+      // Kick off background prefetch for upcoming tracks.
+      unawaited(_prebufferNext(_currentIndex + 1, quality));
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -278,8 +316,41 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> playFromQueue(
-    int index, {
+  /// Preloads stream URLs for the next [count] tracks into [_urlCache].
+  Future<void> _prebufferNext(int fromIndex, AudioQuality quality) async {
+    if (_isPrebuffering) return;
+    _isPrebuffering = true;
+    final count = 2; // matches SettingsProvider.defaultPrebufferCount
+    try {
+      for (var i = fromIndex; i < fromIndex + count && i < _queue.length; i++) {
+        final track = _queue[i];
+        if (_urlCache.containsKey(track.id)) continue;
+        try {
+          final url = await _audioRepository.getAudioUrl(
+            track,
+            quality: quality.name,
+          );
+          _urlCache[track.id] = url;
+        } catch (_) {
+          // Prefetch failures are silent — url will be fetched on demand.
+        }
+      }
+      // Evict URLs for tracks that are 3+ positions behind current index.
+      final staleThreshold = _currentIndex - 3;
+      if (staleThreshold > 0) {
+        final staleIds = _queue
+            .sublist(0, staleThreshold.clamp(0, _queue.length))
+            .map((t) => t.id)
+            .toSet();
+        _urlCache.removeWhere((id, _) => staleIds.contains(id));
+      }
+    } finally {
+      _isPrebuffering = false;
+    }
+  }
+
+  Future<String> getVideoUrl(
+    Track track, {
     AudioQuality quality = AudioQuality.low,
   }) async {
     if (index < 0 || index >= _queue.length) return;
@@ -365,62 +436,8 @@ class PlayerProvider extends ChangeNotifier {
     _bufferedPositionSub = null;
   }
 
-  void _listenForCompletion() {
-    _completionSubscription?.cancel();
-    _completionSubscription = _audioRepository.processingStateStream.listen((
-      state,
-    ) {
-      if (state == ProcessingState.completed) {
-        if (_repeatMode == repeat.PlaybackRepeatMode.one) {
-          playFromQueue(_currentIndex);
-        } else if (_currentIndex + 1 < _queue.length) {
-          next();
-        } else if (_repeatMode == repeat.PlaybackRepeatMode.all &&
-            _queue.isNotEmpty) {
-          playFromQueue(0);
-        } else if (_currentTrack != null) {
-          _fetchAutoplayRecommendations();
-        }
-      }
-    });
-  }
-
-  Future<void> _fetchAutoplayRecommendations() async {
-    if (_currentTrack == null) return;
-    _isAutoplaying = true;
-    notifyListeners();
-    try {
-      final related = await _audioRepository.getRelatedVideos(_currentTrack!);
-      final newTracks =
-          related.where((t) => !_queue.any((q) => q.id == t.id)).toList();
-      if (newTracks.isEmpty) return;
-      _queue.addAll(newTracks);
-      notifyListeners();
-      await playFromQueue(_currentIndex + 1);
-      _preDownloadAutoplay();
-    } catch (_) {
-    } finally {
-      _isAutoplaying = false;
-      notifyListeners();
-    }
-  }
-
-  void _preDownloadAutoplay() {
-    final dl = _downloadProvider;
-    final settings = _settingsProvider;
-    if (dl == null || settings == null) return;
-    dl.preDownloadUpcoming(
-      _queue,
-      _currentIndex,
-      '__autoplay__',
-      prebufferCount: settings.prebufferCount,
-      quality: settings.audioQuality.name,
-    );
-  }
-
   Future<void> stop() async {
     _stopPolling();
-    _completionSubscription?.cancel();
     await _audioRepository.stop();
     _isPlaying = false;
     _position = Duration.zero;
@@ -449,6 +466,37 @@ class PlayerProvider extends ChangeNotifier {
 
   void setAudioHandler(MusicAudioHandler handler) {
     _audioHandler = handler;
+    _playbackStateSub?.cancel();
+    _playbackStateSub = handler.playbackState.listen((state) {
+      if (_isPlaying != state.playing) {
+        _isPlaying = state.playing;
+        notifyListeners();
+      }
+    });
+    _syncQueueToHandler();
+  }
+
+  MediaItem _trackToMediaItem(Track track) {
+    return MediaItem(
+      id: track.id,
+      title: track.title,
+      artist: track.author ?? '',
+      artUri: track.thumbnailUrl != null
+          ? Uri.tryParse(track.thumbnailUrl!)
+          : null,
+      duration: track.duration,
+    );
+  }
+
+  void _syncQueueToHandler() {
+    if (_audioHandler != null) {
+      final items = _queue.map(_trackToMediaItem).toList();
+      _audioHandler!.setQueue(items, startIndex: _currentIndex);
+    }
+  }
+
+  void setCrossfadeEnabled(bool enabled) {
+    _audioHandler?.customAction('setCrossfadeEnabled', {'enabled': enabled});
   }
 
   @override
@@ -456,9 +504,10 @@ class PlayerProvider extends ChangeNotifier {
     _sleepTimer?.cancel();
     _sleepTimerTick?.cancel();
     _stopPolling();
-    _completionSubscription?.cancel();
     _skipNextSubscription?.cancel();
     _skipPrevSubscription?.cancel();
+    _mediaItemSub?.cancel();
+    _playbackStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _bufferedPositionSub?.cancel();

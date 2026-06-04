@@ -40,20 +40,67 @@ class LyricsService {
     final cacheKey = track.id;
     if (_cache.containsKey(cacheKey)) return _cache[cacheKey];
 
-    final title = _cleanTitle(track.title);
-    final artist = _cleanArtist(track.author);
+    final rawTitle = track.title;
+    final rawArtist = track.author ?? '';
     final duration = track.duration.inSeconds;
 
     try {
-      final exact = await _fetchExact(title, artist, duration);
-      if (exact != null && exact.hasAnyLyrics) {
-        _cache[cacheKey] = exact;
-        return exact;
+      // 1. Strategy A: Standard Cleaned Title & Artist
+      final titleA = _cleanTitle(rawTitle);
+      final artistA = _cleanArtist(rawArtist);
+      var result = await _fetchExact(titleA, artistA, duration);
+      if (result != null && result.hasAnyLyrics) {
+        _cache[cacheKey] = result;
+        return result;
+      }
+      result = await _search(titleA, artistA, duration);
+      if (result != null && result.hasAnyLyrics) {
+        _cache[cacheKey] = result;
+        return result;
       }
 
-      final search = await _search(title, artist, duration);
-      _cache[cacheKey] = search;
-      return search;
+      // 2. Strategy B: Hyphen Split Parsing (e.g. Artist - Title)
+      String? splitTitle;
+      String? splitArtist;
+      final hyphenIndex = rawTitle.indexOf(RegExp(r'\s+[-–—]\s+'));
+      if (hyphenIndex != -1) {
+        final parts = rawTitle.split(RegExp(r'\s+[-–—]\s+'));
+        if (parts.length >= 2) {
+          splitArtist = _cleanArtist(parts[0]);
+          splitTitle = _cleanTitle(parts[1]);
+          
+          result = await _fetchExact(splitTitle, splitArtist, duration);
+          if (result != null && result.hasAnyLyrics) {
+            _cache[cacheKey] = result;
+            return result;
+          }
+          result = await _search(splitTitle, splitArtist, duration);
+          if (result != null && result.hasAnyLyrics) {
+            _cache[cacheKey] = result;
+            return result;
+          }
+        }
+      }
+
+      // 3. Strategy C: Title-only Search (without artist filter)
+      result = await _search(titleA, '', duration);
+      if (result != null && result.hasAnyLyrics) {
+        _cache[cacheKey] = result;
+        return result;
+      }
+
+      // 4. Strategy D: Split-Title only Search
+      if (splitTitle != null) {
+        result = await _search(splitTitle, '', duration);
+        if (result != null && result.hasAnyLyrics) {
+          _cache[cacheKey] = result;
+          return result;
+        }
+      }
+
+      // No strategies succeeded
+      _cache[cacheKey] = null;
+      return null;
     } catch (e) {
       dev.log(
         'Lyrics lookup failed for ${track.id}: $e',
@@ -74,7 +121,14 @@ class LyricsService {
       if (artist.isNotEmpty) 'artist_name': artist,
       if (duration > 0) 'duration': '$duration',
     });
-    final response = await _client.get(uri).timeout(const Duration(seconds: 8));
+    final response = await _client.get(
+      uri,
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      },
+    ).timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) return null;
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return _fromJson(json);
@@ -89,7 +143,14 @@ class LyricsService {
       'track_name': title,
       if (artist.isNotEmpty) 'artist_name': artist,
     });
-    final response = await _client.get(uri).timeout(const Duration(seconds: 8));
+    final response = await _client.get(
+      uri,
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      },
+    ).timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) return null;
 
     final results = jsonDecode(response.body) as List<dynamic>;

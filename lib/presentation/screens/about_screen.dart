@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/app_constants.dart';
 import '../widgets/pixel_logo.dart';
 import 'licenses_screen.dart';
+import 'contributors_screen.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -42,7 +43,7 @@ class AboutScreen extends StatelessWidget {
                             const Text(
                               AppConstants.appName,
                               style: TextStyle(
-                                fontSize: 30,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -88,11 +89,126 @@ class AboutScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const LicensesScreen()),
                   ),
                 ),
+                const SizedBox(height: 18),
+                _ActionTile(
+                  icon: Icons.people_rounded,
+                  title: 'Contributors',
+                  subtitle: 'Meet the creators behind the app',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ContributorsScreen()),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const _ChangelogSection(),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _ChangelogSection extends StatelessWidget {
+  const _ChangelogSection();
+
+  static const _items = [
+    (
+      '1.4.1',
+      'Fixed background audio playback and track auto-play progression on Android devices, and introduced a toggleable 7-second crossfade feature on the Now Playing screen.',
+    ),
+    (
+      '1.4.0',
+      'Added favorite collection support (playlists and albums), fully rebuilt iOS background playback auto-advance and dynamic island integration, resolved layout overflow bugs, and optimized the Now Playing FAB with dynamic sizing.',
+    ),
+    (
+      '1.3.0',
+      'Added floating player controls with play/pause and progress seekbar border to FAB, removed mini-player layout, optimized audio quality settings defaults, added geo-restrictions bypass, resolved playlist duration mapping, fixed search playlist navigation, and adjusted artist page layouts.',
+    ),
+    (
+      '1.2.0',
+      'Added Apple Music chart shelves with scoped Top 100 songs, album detail playback, recommendation autoplay, cached chart/search lookups, a custom video player, and refreshed About details.',
+    ),
+    (
+      '1.1.0',
+      'Improved playlist browsing, downloads, favourites, queue tools, and playback controls.',
+    ),
+    (
+      '1.0.0',
+      'Initial Android release for streaming public YouTube playlists, videos, and mixes.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171717),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withAlpha(14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.history_rounded, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Changelog',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ..._items.indexed.map((entry) {
+            final index = entry.$1;
+            final item = entry.$2;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _items.length - 1 ? 0 : 14,
+              ),
+              child: _ChangelogItem(version: item.$1, body: item.$2),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChangelogItem extends StatelessWidget {
+  final String version;
+  final String body;
+
+  const _ChangelogItem({required this.version, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            version,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            body,
+            style: const TextStyle(color: Colors.white54, height: 1.35),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -124,7 +240,7 @@ class _PageHeader extends StatelessWidget {
         const SizedBox(width: 16),
         Text(
           title,
-          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
       ],
     );

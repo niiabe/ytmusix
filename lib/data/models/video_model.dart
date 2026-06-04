@@ -7,6 +7,8 @@ class TrackModel {
   final int durationSeconds;
   final String? author;
   final int index;
+  final String? albumId;
+  final String? artistId;
 
   TrackModel({
     required this.id,
@@ -15,6 +17,8 @@ class TrackModel {
     this.durationSeconds = 0,
     this.author,
     this.index = 0,
+    this.albumId,
+    this.artistId,
   });
 
   factory TrackModel.fromMap(Map<String, dynamic> map) {
@@ -25,6 +29,8 @@ class TrackModel {
       durationSeconds: map['durationSeconds'] as int? ?? 0,
       author: map['author'] as String?,
       index: map['idx'] as int? ?? 0,
+      albumId: map['albumId'] as String?,
+      artistId: map['artistId'] as String?,
     );
   }
 
@@ -36,6 +42,8 @@ class TrackModel {
       'durationSeconds': durationSeconds,
       'author': author,
       'idx': index,
+      'albumId': albumId,
+      'artistId': artistId,
     };
   }
 
@@ -47,6 +55,8 @@ class TrackModel {
       duration: Duration(seconds: durationSeconds),
       author: author,
       index: index,
+      albumId: albumId,
+      artistId: artistId,
     );
   }
 }

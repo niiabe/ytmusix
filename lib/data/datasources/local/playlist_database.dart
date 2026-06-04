@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../models/playlist_model.dart';
 import '../../models/video_model.dart';
 
@@ -26,7 +27,7 @@ class PlaylistDatabase {
     final path = join(dbPath, 'ytmusix.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 7,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -83,6 +84,18 @@ class PlaylistDatabase {
         favoritedAt INTEGER NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS favorite_collections (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        thumbnailUrl TEXT,
+        author TEXT,
+        videoCount INTEGER DEFAULT 0,
+        favoritedAt INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -126,6 +139,24 @@ class PlaylistDatabase {
         )
       ''');
     }
+    if (oldVersion < 6) {
+      await db.execute("ALTER TABLE tracks ADD COLUMN albumId TEXT");
+      await db.execute("ALTER TABLE tracks ADD COLUMN artistId TEXT");
+    }
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS favorite_collections (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          thumbnailUrl TEXT,
+          author TEXT,
+          videoCount INTEGER DEFAULT 0,
+          favoritedAt INTEGER NOT NULL
+        )
+      ''');
+    }
   }
 
   Future<void> insertPlaylist(PlaylistModel playlist) async {
@@ -134,6 +165,7 @@ class PlaylistDatabase {
     if (playlist.createdAt == 0) {
       map['createdAt'] = DateTime.now().millisecondsSinceEpoch;
     }
+    map.remove('type');
     await db.insert('playlists', map,
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -238,18 +270,40 @@ class PlaylistDatabase {
     return result.isNotEmpty;
   }
 
+  Future<String> _resolveDynamicPath(String storedPath) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final index = storedPath.indexOf('downloads/');
+    if (index != -1) {
+      final relativePath = storedPath.substring(index);
+      return join(appDir.path, relativePath);
+    }
+    return storedPath;
+  }
+
   Future<String?> getDownloadedFilePath(String trackId) async {
     final db = await database;
     final result = await db.query('downloaded_tracks',
         where: 'id = ?', whereArgs: [trackId], limit: 1);
     if (result.isEmpty) return null;
-    return result.first['filePath'] as String?;
+    final path = result.first['filePath'] as String?;
+    if (path == null) return null;
+    return _resolveDynamicPath(path);
   }
 
   Future<List<Map<String, dynamic>>> getDownloadedTracks(String playlistId) async {
     final db = await database;
-    return db.query('downloaded_tracks',
+    final results = await db.query('downloaded_tracks',
         where: 'playlistId = ?', whereArgs: [playlistId]);
+    final resolved = <Map<String, dynamic>>[];
+    for (final map in results) {
+      final newMap = Map<String, dynamic>.from(map);
+      final path = newMap['filePath'] as String?;
+      if (path != null) {
+        newMap['filePath'] = await _resolveDynamicPath(path);
+      }
+      resolved.add(newMap);
+    }
+    return resolved;
   }
 
   Future<void> removeDownloadedTrack(String trackId) async {
@@ -262,7 +316,14 @@ class PlaylistDatabase {
     final result = await db.query('downloaded_tracks',
         columns: ['filePath'],
         where: 'playlistId = ?', whereArgs: [playlistId]);
-    return result.map((r) => r['filePath'] as String).toList();
+    final paths = <String>[];
+    for (final r in result) {
+      final path = r['filePath'] as String?;
+      if (path != null) {
+        paths.add(await _resolveDynamicPath(path));
+      }
+    }
+    return paths;
   }
 
   Future<void> removeDownloadedPlaylist(String playlistId) async {
@@ -336,5 +397,44 @@ class PlaylistDatabase {
       );
     }
     return tracks;
+  }
+
+  Future<void> toggleFavoriteCollection(PlaylistModel playlist, String type) async {
+    final db = await database;
+    final existing = await db.query('favorite_collections',
+        where: 'id = ?', whereArgs: [playlist.id], limit: 1);
+    if (existing.isNotEmpty) {
+      await db.delete('favorite_collections', where: 'id = ?', whereArgs: [playlist.id]);
+    } else {
+      await db.insert('favorite_collections', {
+        'id': playlist.id,
+        'type': type,
+        'title': playlist.title,
+        'description': playlist.description,
+        'thumbnailUrl': playlist.thumbnailUrl,
+        'author': playlist.author,
+        'videoCount': playlist.videoCount,
+        'favoritedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
+
+  Future<bool> isCollectionFavorite(String collectionId) async {
+    final db = await database;
+    final result = await db.query('favorite_collections',
+        where: 'id = ?', whereArgs: [collectionId], limit: 1);
+    return result.isNotEmpty;
+  }
+
+  Future<Set<String>> getFavoriteCollectionIds() async {
+    final db = await database;
+    final result = await db.query('favorite_collections', columns: ['id']);
+    return result.map((r) => r['id'] as String).toSet();
+  }
+
+  Future<List<PlaylistModel>> getFavoriteCollections() async {
+    final db = await database;
+    final maps = await db.query('favorite_collections', orderBy: 'favoritedAt DESC');
+    return maps.map((m) => PlaylistModel.fromMap(m)).toList();
   }
 }

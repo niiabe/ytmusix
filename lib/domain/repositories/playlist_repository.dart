@@ -1,4 +1,5 @@
 import '../entities/playlist.dart';
+import '../entities/search_result_models.dart';
 import '../entities/video.dart';
 
 abstract class PlaylistRepository {
@@ -11,6 +12,9 @@ abstract class PlaylistRepository {
   Future<List<Track>> getCachedTracks(String playlistId);
   Future<Playlist?> getCachedPlaylist(String playlistId);
   Future<List<Track>> search(String query);
+  Future<CategorizedSearchResults> searchAll(String query);
+  Future<AlbumDetailResult> getAlbum(String playlistId);
+  Future<ArtistDetailResult> getArtist(String artistId);
   Future<void> toggleFavorite(Track track);
   Future<bool> isFavorite(String trackId);
   Future<Set<String>> getFavoriteIds();
@@ -18,4 +22,8 @@ abstract class PlaylistRepository {
   Future<void> updatePlaylistTitle(String id, String newTitle);
   Future<void> removeTrack(String playlistId, String trackId);
   Future<void> reorderTracks(String playlistId, List<String> trackIdsInOrder);
+  Future<void> toggleFavoriteCollection(Playlist playlist, String type);
+  Future<bool> isCollectionFavorite(String collectionId);
+  Future<Set<String>> getFavoriteCollectionIds();
+  Future<List<Playlist>> getFavoriteCollections();
 }
