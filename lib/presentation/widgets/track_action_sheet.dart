@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../domain/entities/video.dart';
 import '../providers/download_provider.dart';
@@ -69,6 +70,12 @@ class _TrackActionSheet extends StatelessWidget {
             title: 'Play next',
             subtitle: 'Add after the current track',
             onTap: () => _playNext(context),
+          ),
+          _TrackAction(
+            icon: Icons.link_rounded,
+            title: 'Copy YouTube link',
+            subtitle: 'Open the video in a browser',
+            onTap: () => _copyYouTubeLink(context),
           ),
           _TrackAction(
             icon: isFavorite
@@ -242,6 +249,19 @@ class _TrackActionSheet extends StatelessWidget {
     messenger.showSnackBar(
       SnackBar(
         content: Text('"${track.title}" added to queue'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _copyYouTubeLink(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    final url = 'https://www.youtube.com/watch?v=${track.id}';
+    Clipboard.setData(ClipboardData(text: url));
+    Navigator.pop(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('YouTube link copied: $url'),
         duration: const Duration(seconds: 2),
       ),
     );

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Player: real autoplay-after-queue instead of stopping. `PlayerProvider._fetchAutoplayRecommendations` now queries `AudioRepository.getRecommendations(seed, limit: 15)`, de-duplicates against the current queue, appends the new tracks, syncs the handler, and starts playback on the first new item. Falls back to the previous `stop()` behavior if recommendations are empty or fail.
+- Player: auto-hide transport controls. The transport row, lyrics, and quick actions fade out after 3 s of inactivity and reappear on tap. The artwork, title/artist, and seek bar stay visible. A `Timer` cancels on `dispose`.
+- Track sheet: new "Copy YouTube link" action copies `https://www.youtube.com/watch?v={id}` to the clipboard so the user can open the video in a browser while audio plays in-app (lightweight A/V switcher).
 - Removed iOS and macOS host projects; the app is Android-only.
 - Removed iOS configuration from `flutter_launcher_icons` and `flutter_native_splash`.
 - Cleaned iOS references and the iOS Simulator build section from the README.

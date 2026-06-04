@@ -445,9 +445,35 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchAutoplayRecommendations() async {
-    // Autoplay recommendations are powered by the YouTube Music API which is
-    // currently disabled. Fall back to stopping playback when the queue ends.
-    await stop();
+    if (_currentTrack == null) {
+      await stop();
+      return;
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final recommendations = await _audioRepository.getRecommendations(
+        _currentTrack!,
+        limit: 15,
+      );
+      final existing = _queue.map((t) => t.id).toSet();
+      final fresh = recommendations
+          .where((t) => !existing.contains(t.id))
+          .toList();
+      if (fresh.isEmpty) {
+        await stop();
+        return;
+      }
+      _queue.addAll(fresh);
+      _syncQueueToHandler();
+      await playFromQueue(_currentIndex + 1);
+    } catch (e) {
+      _error = e.toString();
+      await stop();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> clearQueue() async {

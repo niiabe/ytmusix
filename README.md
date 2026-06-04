@@ -42,6 +42,9 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 ### UI
 - **Modern Browse home** — large-title browse screen with rounded controls, category tabs, horizontal playlist artwork, and ranked top hits
 - **Expanded player** — full-screen now-playing view with large artwork, gradient background, waveform seek control, favorite action, and compact transport controls
+- **Auto-hide controls** — transport row, lyrics, and quick actions fade out after 3 s of inactivity on the now-playing screen and reappear on tap; the artwork, title, and seek bar stay visible
+- **Smart autoplay** — when the queue ends, YTMusix fetches related recommendations from YouTube and keeps playback going; falls back to stop if no recommendations are available
+- **A/V switcher** — audio plays in-app while a track-row "Copy YouTube link" action exposes the YouTube URL for video viewing in a browser
 - **Modern secondary screens** — Search, Playlist, Settings, Login, track rows, and mini player share the same rounded dark visual language
 - **Mini player** — floating bottom player with artwork, queue access, transport controls, active progress, and buffered progress
 - **Dark theme** — music-app-inspired dark UI with a bird/mascot launcher icon and green brand accent (YTMusix Canary build)
