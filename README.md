@@ -41,8 +41,9 @@ A Flutter mobile app that streams audio from public YouTube playlists, single vi
 
 ### UI
 - **Modern Browse home** — large-title browse screen with rounded controls, category tabs, horizontal playlist artwork, and ranked top hits
+- **Exclusive category tabs** — `New`, `Trend`, `Podcasts`, and `Favourites` only show tracks natively belonging to that tab. The `Added` tab keeps the user's imported playlists, "Added links", and recently played tracks; on the other tabs none of those leak into the list view
+- **Downloaded pill** — right-aligned `Downloaded` chip in the Browse header (green down-arrow icon) opens a bottom sheet of all cached tracks for offline playback
 - **Expanded player** — full-screen now-playing view with large artwork, gradient background, waveform seek control, favorite action, and compact transport controls
-- **Auto-hide controls** — transport row, lyrics, and quick actions fade out after 3 s of inactivity on the now-playing screen and reappear on tap; the artwork, title, and seek bar stay visible
 - **Smart autoplay** — when the queue ends, YTMusix fetches related recommendations from YouTube and keeps playback going; falls back to stop if no recommendations are available
 - **A/V switcher** — audio plays in-app while a track-row "Copy YouTube link" action exposes the YouTube URL for video viewing in a browser
 - **Modern secondary screens** — Search, Playlist, Settings, Login, track rows, and mini player share the same rounded dark visual language
@@ -187,7 +188,7 @@ lib/
 │       ├── now_playing_fab.dart
 │       ├── queue_sheet.dart
 │       ├── track_action_sheet.dart
-│       └── pixel_logo.dart
+│       └── brand_logo.dart
 └── service/
     ├── audio_handler.dart          # MusicAudioHandler (audio_service bridge)
     ├── auth_service.dart           # flutter_secure_storage cookies
@@ -204,11 +205,13 @@ Android build identity: `com.ytmusix.ytmusix.canary` (YTMusix Canary). Source ic
 flutter test
 ```
 
-11 tests across 3 files, all passing:
+26 tests across 4 files, all passing:
 
 - `test/service/chart_service_test.dart` — Apple Ghana songs/albums caching, scoped Top 100 lookup, hot album playback
 - `test/presentation/providers/player_provider_test.dart` — queue init, shuffle, repeat, remove/reorder, sleep timer
 - `test/presentation/providers/playlist_provider_test.dart` — silent search cache deduplication
+- `test/presentation/providers/playlist_ranking_test.dart` — `rankHomeFeedTracks` boosts official tracks, penalises DJ mixes, applies stable tie-breakers
+- `test/core/utils/youtube_link_parser_test.dart` — watch, shorts, youtu.be, live, playlist, channel, nocookie fallback, unknown
 
 `flutter analyze` is clean (no warnings, no errors).
 

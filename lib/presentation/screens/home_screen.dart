@@ -206,6 +206,194 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showDownloadedSheet(BuildContext context) {
+    final downloadProvider = context.read<DownloadProvider>();
+    final playlistProvider = context.read<PlaylistProvider>();
+    final player = context.read<PlayerProvider>();
+    final settings = context.read<SettingsProvider>();
+    final downloadedIds = downloadProvider.downloadedTrackIds.toSet();
+    final downloadedPlaylists = downloadProvider.downloadedPlaylists.toSet();
+    final tracks = <Track>[];
+    for (final playlist in playlistProvider.playlists) {
+      if (downloadedPlaylists.contains(playlist.id)) {
+        for (final t in playlist.tracks) {
+          if (downloadedIds.contains(t.id) && !tracks.any((x) => x.id == t.id)) {
+            tracks.add(t);
+          }
+        }
+      }
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1DB954).withAlpha(40),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.download_rounded,
+                        size: 18,
+                        color: Color(0xFF1DB954),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Downloaded',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${tracks.length} tracks',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (tracks.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF171717),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withAlpha(14)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.cloud_off_rounded,
+                          color: Colors.white54,
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No downloaded tracks yet. Tap the download icon on a playlist to save it for offline playback.',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 360),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: tracks.length,
+                      separatorBuilder: (_, _) => const Divider(
+                        color: Colors.white10,
+                        height: 1,
+                      ),
+                      itemBuilder: (context, index) {
+                        final track = tracks[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: track.thumbnailUrl == null
+                                  ? Container(
+                                      color: const Color(0xFF252525),
+                                      child: const Icon(
+                                        Icons.music_note_rounded,
+                                        color: Colors.white38,
+                                      ),
+                                    )
+                                  : Image.network(
+                                      track.thumbnailUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Container(
+                                        color: const Color(0xFF252525),
+                                        child: const Icon(
+                                          Icons.music_note_rounded,
+                                          color: Colors.white38,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          title: Text(
+                            track.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            track.author ?? 'YouTube',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 11,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Color(0xFF1DB954),
+                          ),
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            player.setQueue(tracks, startIndex: index);
+                            player.playTrack(
+                              track,
+                              quality: settings.audioQuality,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -442,9 +630,22 @@ class _HomeScreenState extends State<HomeScreen> {
               146,
             ),
             children: [
-              const Text(
-                'Browse',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Browse',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  _DownloadedHeaderPill(
+                    onTap: () => _showDownloadedSheet(context),
+                  ),
+                ],
               ),
               const SizedBox(height: 18),
               _buildCategoryTabs(),
@@ -452,8 +653,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_chartsVisible)
                 _buildAppleMusicSection(context, chartProvider, playerProvider),
               if (_chartsVisible) const SizedBox(height: 22),
-              _buildPlaylistSection(context, provider, playerProvider),
-              const SizedBox(height: 22),
+              if (_isPlaylistTab)
+                _buildPlaylistSection(context, provider, playerProvider),
+              if (_isPlaylistTab) const SizedBox(height: 22),
               if (feedKey != null)
                 _buildTrackShelf(
                   context,
@@ -482,18 +684,20 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_homeTab != 0)
                 _buildTopHits(
                   context,
-                  _filteredPlaylists(provider),
+                  const [],
                   _isFavoritesTab ? provider.favoriteTracks : feedTracks,
                   playerProvider,
                   _isFavoritesTab ? provider.favoriteIds : null,
+                  exclusiveFeed: true,
                 ),
               const SizedBox(height: 28),
               _buildTopHits(
                 context,
-                _filteredPlaylists(provider),
+                const [],
                 feedTracks,
                 playerProvider,
                 _homeTab == 4 ? provider.favoriteIds : null,
+                exclusiveFeed: true,
               ),
             ],
           ),
@@ -965,14 +1169,15 @@ class _HomeScreenState extends State<HomeScreen> {
     List<Playlist> playlists,
     List<Track> feedTracks,
     PlayerProvider playerProvider,
-    Set<String>? favoriteIds,
-  ) {
+    Set<String>? favoriteIds, {
+    bool exclusiveFeed = false,
+  }) {
     final tracks = <String, Track>{};
     if (feedTracks.isNotEmpty) {
       for (final track in feedTracks) {
         tracks[track.id] = track;
       }
-    } else {
+    } else if (!exclusiveFeed) {
       for (final track in playerProvider.recentlyPlayed) {
         if (favoriteIds == null || favoriteIds.contains(track.id)) {
           tracks[track.id] = track;
@@ -1588,6 +1793,77 @@ class _PlaylistSectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DownloadedHeaderPill extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _DownloadedHeaderPill({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DownloadProvider>(
+      builder: (context, provider, _) {
+        final count = provider.downloadedTrackIds.length;
+        return GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1DB954).withAlpha(30),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF1DB954).withAlpha(120),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.download_rounded,
+                  size: 16,
+                  color: Color(0xFF1DB954),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Downloaded',
+                  style: TextStyle(
+                    color: Color(0xFF1DB954),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1DB954).withAlpha(220),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

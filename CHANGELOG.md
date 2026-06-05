@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Home: category tabs (`New`, `Trend`, `Podcasts`, `Favourites`) now render content exclusive to that tab. The `Playlist` section (Added links + Recent tracks) and the user-playlist/recently-played fallback in the top-hits chart are hidden on category tabs, so no cross-contamination of datasets.
+- Header: `Browse` title now has a right-aligned `Downloaded` pill (green down-arrow icon) that opens a bottom sheet listing downloaded tracks and lets you tap-to-play.
 - Home: "New" feed results are now sorted by a ranking function (`PlaylistProvider.rankHomeFeedTracks`) that puts official tracks, music videos, lyric videos, and trusted authors (VEVO / Records / Official) above DJ mixes, megamixes, nonstop sets, mixtapes, and other long-form content. The original YouTube relevance order is used as a stable tie-breaker among tracks that score equally. Podcasts feed is unchanged.
 - Home: chart shelves (Apple Music Ghana Hot 100 + Hot Albums) are now conditionally rendered. They are visible on initial app load and immediately hidden as soon as the user selects a tab or category. The hide is one-way — re-launching the app brings the shelves back.
 - Player: removed the 3 s auto-hide timer for transport controls. Play / pause / skip / seekbar / lyrics / quick actions now stay persistently visible during playback. Tapping outside the controls still toggles visibility (manual dismiss / ambient mode).
