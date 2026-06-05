@@ -27,7 +27,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _tabs = ['Recent', 'New', 'Trend', 'Podcasts', 'Favourites'];
+  static const _tabs = ['Added', 'New', 'Trend', 'Podcasts', 'Favourites'];
   int _homeTab = 0;
 
   String? get _activeFeedKey {
@@ -447,6 +447,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 22),
               _buildAppleMusicSection(context, chartProvider, playerProvider),
               const SizedBox(height: 22),
+              _buildPlaylistSection(context, provider, playerProvider),
+              const SizedBox(height: 22),
               if (feedKey != null)
                 _buildTrackShelf(
                   context,
@@ -632,6 +634,112 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text('Playing "${tracks.first.title}"'),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildPlaylistSection(
+    BuildContext context,
+    PlaylistProvider provider,
+    PlayerProvider playerProvider,
+  ) {
+    final addedPlaylists = _filteredPlaylists(provider);
+    final recentTracks = playerProvider.recentlyPlayed;
+    if (addedPlaylists.isEmpty && recentTracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Playlist',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Your added links and recently played tracks',
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (addedPlaylists.isNotEmpty) ...[
+          const _PlaylistSectionHeader(
+            icon: Icons.link_rounded,
+            title: 'Added links',
+            subtitle: 'Playlists and albums you imported',
+          ),
+          const SizedBox(height: 12),
+          _buildPlaylistShelf(
+            context,
+            addedPlaylists,
+            playerProvider,
+            context.read<DownloadProvider>(),
+          ),
+          const SizedBox(height: 22),
+        ],
+        if (recentTracks.isNotEmpty) ...[
+          const _PlaylistSectionHeader(
+            icon: Icons.history_rounded,
+            title: 'Recent tracks',
+            subtitle: 'Songs you have searched for or played',
+          ),
+          const SizedBox(height: 12),
+          _buildRecentTrackShelf(context, recentTracks, playerProvider),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRecentTrackShelf(
+    BuildContext context,
+    List<Track> tracks,
+    PlayerProvider playerProvider,
+  ) {
+    if (tracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final limited = tracks.take(12).toList();
+    return SizedBox(
+      height: 184,
+      child: ListView.separated(
+        clipBehavior: Clip.none,
+        scrollDirection: Axis.horizontal,
+        itemCount: limited.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (context, index) {
+          final track = limited[index];
+          final isCurrent = playerProvider.currentTrack?.id == track.id;
+          return SizedBox(
+            width: 138,
+            child: _HomeTrackCard(
+              track: track,
+              isCurrent: isCurrent,
+              isPlaying: isCurrent && playerProvider.isPlaying,
+              onTap: () {
+                final quality = context.read<SettingsProvider>().audioQuality;
+                playerProvider.setQueue(limited, startIndex: index);
+                playerProvider.playTrack(track, quality: quality);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                );
+              },
+              onPlay: () {
+                if (isCurrent) {
+                  playerProvider.togglePlayPause();
+                  return;
+                }
+                final quality = context.read<SettingsProvider>().audioQuality;
+                playerProvider.setQueue(limited, startIndex: index);
+                playerProvider.playTrack(track, quality: quality);
+              },
+            ),
+          );
+        },
       ),
     );
   }
@@ -1417,6 +1525,64 @@ class _TopHitTile extends StatelessWidget {
         onPressed: onMore,
       ),
       onTap: onTap,
+    );
+  }
+}
+
+class _PlaylistSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _PlaylistSectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withAlpha(30),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 16,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

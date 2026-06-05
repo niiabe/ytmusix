@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Player: removed the 3 s auto-hide timer for transport controls. Play / pause / skip / seekbar / lyrics / quick actions now stay persistently visible during playback. Tapping outside the controls still toggles visibility (manual dismiss / ambient mode).
+- Home: Browse view gains a new **Playlist** section that aggregates user-added links (imported playlists and albums) and recently played tracks in two horizontal shelves. Saved playlists show the existing "Added" badge.
+- Home: category tabs reordered — `Added, New, Trend, Podcasts, Favourites` (was `Recent, New, Trend, Podcasts, Favourites`). The "Added" tab shows the imported playlists from the link dialog.
+- Player: tapping or dragging the seek bar on a loaded song now actually seeks (`onSeek` is wired back to `PlayerProvider.seekTo` after the auto-hide refactor accidentally overrode it).
+- Link parser: `youtube_url_processor ^0.1.4` is now wired as a second-stage fallback so nocookie embeds, channel variants, and other shapes the primary regex set cannot match are still classified.
+- YouTube link parser: recognises `youtube.com/live/<id>` URLs as `YoutubeLinkType.live` and routes them through the same video handler in the home link dialog.
 - Rebrand: app display name is now `YTMusix Canary` everywhere. `AppConstants.appName`, `MaterialApp.title`, the playlist export header, the Android notification channel (`ytmusix_canary_music` / `YTMusix Canary Playback`), and the README title all use the canary name. Android `applicationId` / `namespace` / `android:label` are already `YTMusix Canary` (`com.ytmusix.ytmusix.canary`).
 - Brand asset: `tool/icon.png` is now bundled as `assets/brand/icon.png` and rendered in-app via the new `BrandLogo` widget (used in the home AppBar, the home empty state, and the About screen hero). The hand-drawn `pixel_logo.dart` is removed.
 - YouTube link parser: recognises `youtube.com/live/<videoId>` URLs as `YoutubeLinkType.live` and routes them through the same video handler in the home link dialog.

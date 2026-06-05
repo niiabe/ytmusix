@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -26,47 +25,16 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   static final _lyricsService = LyricsService();
 
-  static const _autoHideDelay = Duration(seconds: 3);
-
   bool _controlsVisible = true;
-  Timer? _hideTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startHideTimer();
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startHideTimer() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(_autoHideDelay, () {
-      if (mounted) {
-        setState(() => _controlsVisible = false);
-      }
-    });
-  }
 
   void _toggleControls() {
-    if (_controlsVisible) {
-      setState(() => _controlsVisible = false);
-      _hideTimer?.cancel();
-    } else {
-      setState(() => _controlsVisible = true);
-      _startHideTimer();
-    }
+    setState(() => _controlsVisible = !_controlsVisible);
   }
 
-  void _keepControlsVisible() {
+  void _showControls() {
     if (!_controlsVisible) {
       setState(() => _controlsVisible = true);
     }
-    _startHideTimer();
   }
 
   @override
@@ -158,7 +126,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     final nextVal = !settings.crossfadeEnabled;
                                     settings.setCrossfadeEnabled(nextVal);
                                     player.setCrossfadeEnabled(nextVal);
-                                    _keepControlsVisible();
+                                    _showControls();
                                   },
                                 ),
                                 IconButton(
@@ -175,7 +143,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                       : 'Add to favorites',
                                   onPressed: () {
                                     playlistProvider.toggleFavorite(track);
-                                    _keepControlsVisible();
+                                    _showControls();
                                   },
                                 ),
                               ],
@@ -187,7 +155,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               bufferedPosition: player.bufferedPosition,
                               onSeek: (position) {
                                 player.seekTo(position);
-                                _keepControlsVisible();
+                                _showControls();
                               },
                             ),
                             const SizedBox(height: 28),
@@ -208,14 +176,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                           active: player.shuffleMode,
                                           onPressed: () {
                                             player.toggleShuffle();
-                                            _keepControlsVisible();
+                                            _showControls();
                                           },
                                         ),
                                         _ControlButton(
                                           icon: Icons.skip_previous_rounded,
                                           onPressed: () {
                                             player.previous();
-                                            _keepControlsVisible();
+                                            _showControls();
                                           },
                                         ),
                                         player.isLoading
@@ -243,7 +211,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                                   ),
                                                   onPressed: () {
                                                     player.togglePlayPause();
-                                                    _keepControlsVisible();
+                                                    _showControls();
                                                   },
                                                 ),
                                               ),
@@ -253,7 +221,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                                   player.queue.length
                                               ? () {
                                                   player.next();
-                                                  _keepControlsVisible();
+                                                  _showControls();
                                                 }
                                               : null,
                                         ),
@@ -263,7 +231,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                               repeat.PlaybackRepeatMode.none,
                                           onPressed: () {
                                             player.cycleRepeatMode();
-                                            _keepControlsVisible();
+                                            _showControls();
                                           },
                                         ),
                                       ],
