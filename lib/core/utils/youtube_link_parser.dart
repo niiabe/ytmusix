@@ -1,3 +1,5 @@
+import 'package:youtube_url_processor/youtube_url_processor.dart' as yup;
+
 enum YoutubeLinkType {
   video,
   playlist,
@@ -78,14 +80,23 @@ class YoutubeLinkParser {
     final host = Uri.tryParse(trimmed)?.host ?? '';
     final path = Uri.tryParse(trimmed)?.path ?? '';
 
-    return switch ((host, path, videoId, playlistId)) {
-      (final h, _, _, _) when h.contains('youtube.com') ||
-              h.contains('youtu.be') ||
-              h.contains('m.youtube.com') ||
-              h.contains('music.youtube.com') =>
-        _classifyYouTube(host, path, videoId, playlistId, trimmed),
-      _ => _classifyNonYouTube(videoId, playlistId, trimmed),
-    };
+    if (host.contains('youtube.com') ||
+        host.contains('youtu.be') ||
+        host.contains('m.youtube.com') ||
+        host.contains('music.youtube.com')) {
+      return _classifyYouTube(host, path, videoId, playlistId, trimmed);
+    }
+
+    final nonHost = _classifyNonYouTube(videoId, playlistId, trimmed);
+    if (nonHost.type != YoutubeLinkType.unknown) {
+      return nonHost;
+    }
+
+    // Fall back to youtube_url_processor for inputs the primary extractor
+    // can't classify. Catches live channel URLs, channel/@handle, nocookie,
+    // clip links, and other variants.
+    return _YoutubeUrlProcessorFallback.tryParse(trimmed) ??
+        const YoutubeLinkResult(type: YoutubeLinkType.unknown);
   }
 
   static YoutubeLinkResult _classifyYouTube(
@@ -202,5 +213,72 @@ class YoutubeLinkParser {
       );
     }
     return const YoutubeLinkResult(type: YoutubeLinkType.unknown);
+  }
+}
+
+/// Second-stage parser that delegates to the `youtube_url_processor`
+/// package. The primary parser above stays self-contained and fast; the
+/// fallback only runs when the primary cannot classify the input.
+class _YoutubeUrlProcessorFallback {
+  static const _extractor = yup.YouTubeUrlExtractor();
+
+  static YoutubeLinkResult? tryParse(String input) {
+    try {
+      final result = _extractor.extract(input);
+      if (!result.isSuccess) return null;
+      final entity = result.value;
+      if (entity == null) return null;
+
+      switch (entity.type) {
+        case yup.YouTubeContentType.video:
+          final v = entity.video;
+          if (v == null || v.videoId.isEmpty) return null;
+          return YoutubeLinkResult(
+            type: v.isShort
+                ? YoutubeLinkType.shorts
+                : YoutubeLinkType.video,
+            videoId: v.videoId,
+            playlistId: v.playlistId,
+          );
+        case yup.YouTubeContentType.short:
+          final v = entity.video;
+          if (v == null || v.videoId.isEmpty) return null;
+          return YoutubeLinkResult(
+            type: YoutubeLinkType.shorts,
+            videoId: v.videoId,
+            playlistId: v.playlistId,
+          );
+        case yup.YouTubeContentType.live:
+          final v = entity.video;
+          if (v == null || v.videoId.isEmpty) return null;
+          return YoutubeLinkResult(
+            type: YoutubeLinkType.live,
+            videoId: v.videoId,
+            playlistId: v.playlistId,
+          );
+        case yup.YouTubeContentType.clip:
+          final v = entity.video;
+          if (v == null || v.videoId.isEmpty) return null;
+          return YoutubeLinkResult(
+            type: YoutubeLinkType.video,
+            videoId: v.videoId,
+            playlistId: v.playlistId,
+          );
+        case yup.YouTubeContentType.playlist:
+          final p = entity.playlist;
+          if (p == null || p.playlistId.isEmpty) return null;
+          return YoutubeLinkResult(
+            type: YoutubeLinkType.playlist,
+            videoId: entity.video?.videoId,
+            playlistId: p.playlistId,
+          );
+        case yup.YouTubeContentType.channel:
+          return const YoutubeLinkResult(type: YoutubeLinkType.channel);
+        case yup.YouTubeContentType.unknown:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
   }
 }

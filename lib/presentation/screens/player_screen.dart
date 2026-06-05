@@ -185,7 +185,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               position: player.position,
                               duration: player.duration,
                               bufferedPosition: player.bufferedPosition,
-                              onSeek: (_) => _keepControlsVisible(),
+                              onSeek: (position) {
+                                player.seekTo(position);
+                                _keepControlsVisible();
+                              },
                             ),
                             const SizedBox(height: 28),
                             AnimatedOpacity(
