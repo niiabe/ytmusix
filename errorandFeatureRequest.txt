@@ -1,15 +1,6 @@
 
-
-
-## Remaining Issues
-| Issue | Severity | Impact | Status |
-|---|---|---|---|
-| YouTube mixes may fail to load | Medium | Occasional mix playback failure | ✅ Fixed |
-| Pub cache patch overwritten on upgrade | Low | Requires manual re-application | |
-| Samsung GPU BufferQueue timeout | Low | Harmless logcat spam | 
-| DatabaseException: `tracks` table has no column named `albumId` | Low | Non-fatal error shown once on initial load (likely stale cache write); app recovers after pull-to-refresh | ✅ Fixed (v8 migration + CREATE TABLE) |
-
-
+-loaded songs can not be navigated using the track progress bar
+-if explode package still does not recognize live links. try adding https://pub.dev/packages/youtube_url_processor as a second handler to try parse the links in posh search and link search to try. and add extra code to work on this new package. In short keep what is there and if possible a switch or a try conditionals to try parse. the coding should support both. do not break the currect working app jsut add to it. After it works we will find a better way around it. 
 
 ## Feature Candidates (from futureroadmap.txt)
 - Auto-play recommended videos after track ends — MusicPiped-style infinite radio

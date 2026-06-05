@@ -510,7 +510,7 @@ class PlaylistProvider extends ChangeNotifier {
       .replaceAll('"', '&quot;');
 
   String _toMarkdown(List<Playlist> playlists) {
-    final buf = StringBuffer('# YTMusix Export\n\n');
+    final buf = StringBuffer('# YTMusix Canary Export\n\n');
     buf.writeln('Exported on ${DateTime.now().toLocal()}\n');
     for (final p in playlists) {
       buf.writeln(

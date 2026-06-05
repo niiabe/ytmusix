@@ -1,5 +1,5 @@
 name: ytmusix
-description: YouTube Music Streamer — audio from public YouTube playlists.
+description: YTMusix Canary — Android-only canary build of YTMusix, the YouTube Music Streamer.
 publish_to: 'none'
 version: 1.4.3+8
 

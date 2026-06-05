@@ -44,8 +44,8 @@ Future<void> main() async {
     final audioHandler = await AudioService.init(
       builder: () => MusicAudioHandler(),
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'ytmusix_music',
-        androidNotificationChannelName: 'Music Playback',
+        androidNotificationChannelId: 'ytmusix_canary_music',
+        androidNotificationChannelName: 'YTMusix Canary Playback',
         androidNotificationIcon: 'mipmap/ic_launcher',
         androidNotificationOngoing: true,
         androidNotificationClickStartsActivity: true,

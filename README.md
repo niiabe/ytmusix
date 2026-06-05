@@ -1,6 +1,6 @@
-# ytmusix - YouTube Music Streamer
+# YTMusix Canary - YouTube Music Streamer
 
-A Flutter mobile app that streams audio from public YouTube playlists, single videos, and mixes. No backend, no ads. Built for Android only with a modern dark music-player interface.
+A Flutter mobile app that streams audio from public YouTube playlists, single videos, and mixes. No backend, no ads. Built for Android only with a modern dark music-player interface. YTMusix Canary is the Android-only canary build of the YTMusix project.
 
 ## Features
 

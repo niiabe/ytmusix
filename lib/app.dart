@@ -50,7 +50,7 @@ class YTMusixApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'YTMusix',
+        title: 'YTMusix Canary',
         theme: AppTheme.darkTheme,
         debugShowCheckedModeBanner: false,
         home: const HomeScreen(),

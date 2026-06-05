@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Rebrand: app display name is now `YTMusix Canary` everywhere. `AppConstants.appName`, `MaterialApp.title`, the playlist export header, the Android notification channel (`ytmusix_canary_music` / `YTMusix Canary Playback`), and the README title all use the canary name. Android `applicationId` / `namespace` / `android:label` are already `YTMusix Canary` (`com.ytmusix.ytmusix.canary`).
+- Brand asset: `tool/icon.png` is now bundled as `assets/brand/icon.png` and rendered in-app via the new `BrandLogo` widget (used in the home AppBar, the home empty state, and the About screen hero). The hand-drawn `pixel_logo.dart` is removed.
+- YouTube link parser: recognises `youtube.com/live/<videoId>` URLs as `YoutubeLinkType.live` and routes them through the same video handler in the home link dialog.
+- Search: `searchAll` falls back to the standard `search()` (youtube_explode_dart) so the songs tab in the search screen actually returns results when the YouTube Music API is unavailable.
+- Home: added two horizontal chart shelves — **Apple Music Ghana Hot 100** (songs) and **Apple Music Ghana Hot Albums** — driven by `ChartProvider`. Cards show rank badge, artwork, title, artist; tap uses `PlaylistProvider.searchSilently` (7-day cache) to find the YouTube track and play it.
 - Player: real autoplay-after-queue instead of stopping. `PlayerProvider._fetchAutoplayRecommendations` now queries `AudioRepository.getRecommendations(seed, limit: 15)`, de-duplicates against the current queue, appends the new tracks, syncs the handler, and starts playback on the first new item. Falls back to the previous `stop()` behavior if recommendations are empty or fail.
 - Player: auto-hide transport controls. The transport row, lyrics, and quick actions fade out after 3 s of inactivity and reappear on tap. The artwork, title/artist, and seek bar stay visible. A `Timer` cancels on `dispose`.
 - Track sheet: new "Copy YouTube link" action copies `https://www.youtube.com/watch?v={id}` to the clipboard so the user can open the video in a browser while audio plays in-app (lightweight A/V switcher).
