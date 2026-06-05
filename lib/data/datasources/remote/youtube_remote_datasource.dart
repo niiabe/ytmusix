@@ -359,10 +359,24 @@ class YoutubeRemoteDataSource {
   }
 
   Future<CategorizedSearchResults> searchAll(String query) async {
-    // The YouTube Music API is not available in this build. Return empty
-    // results so the UI degrades gracefully while the regular YouTube search
-    // (via youtube_explode_dart) is used in [search].
-    return const CategorizedSearchResults();
+    // The YouTube Music API is not wired in this build, so album / artist /
+    // playlist results stay empty. We still fall back to the standard search
+    // (powered by youtube_explode_dart) so the songs tab is usable.
+    try {
+      final songs = await search(query);
+      if (songs.isEmpty) {
+        return const CategorizedSearchResults();
+      }
+      return CategorizedSearchResults(
+        songs: songs.map((m) => m.toEntity()).toList(),
+      );
+    } catch (e) {
+      dev.log(
+        'searchAll fallback failed for "$query": $e',
+        name: 'YoutubeRemoteDataSource',
+      );
+      return const CategorizedSearchResults();
+    }
   }
 
   Future<AlbumDetailResult> getAlbum(String albumId) async {

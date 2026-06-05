@@ -2,6 +2,7 @@ enum YoutubeLinkType {
   video,
   playlist,
   shorts,
+  live,
   musicVideo,
   channel,
   unknown,
@@ -34,6 +35,7 @@ class YoutubeLinkParser {
       RegExp(r'(?:youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})'),
       RegExp(r'(?:youtu\.be/)([a-zA-Z0-9_-]{11})'),
       RegExp(r'(?:youtube\.com/shorts/)([a-zA-Z0-9_-]{11})'),
+      RegExp(r'(?:youtube\.com/live/)([a-zA-Z0-9_-]{11})'),
       RegExp(r'(?:m\.youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})'),
       RegExp(r'(?:youtube\.com/embed/)([a-zA-Z0-9_-]{11})'),
       RegExp(r'^([a-zA-Z0-9_-]{11})$'),
@@ -112,6 +114,14 @@ class YoutubeLinkParser {
     if (path.startsWith('/shorts/')) {
       return YoutubeLinkResult(
         type: YoutubeLinkType.shorts,
+        videoId: videoId,
+        playlistId: playlistId,
+      );
+    }
+
+    if (path.startsWith('/live/') || path == '/live') {
+      return YoutubeLinkResult(
+        type: YoutubeLinkType.live,
         videoId: videoId,
         playlistId: playlistId,
       );

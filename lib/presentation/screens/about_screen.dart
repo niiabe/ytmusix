@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/app_constants.dart';
-import '../widgets/pixel_logo.dart';
+import '../widgets/brand_logo.dart';
 import 'licenses_screen.dart';
 import 'contributors_screen.dart';
 
@@ -38,7 +38,10 @@ class AboutScreen extends StatelessWidget {
                       Center(
                         child: Column(
                           children: [
-                            const LogoWithHeadset(size: 104),
+                            const BrandLogo(
+                              size: 104,
+                              borderRadius: BorderRadius.all(Radius.circular(24)),
+                            ),
                             const SizedBox(height: 18),
                             const Text(
                               AppConstants.appName,

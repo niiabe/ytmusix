@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/playlist_sort_mode.dart';
 import '../../core/utils/youtube_link_parser.dart';
+import '../../domain/entities/chart_item.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/entities/video.dart';
 import '../providers/playlist_provider.dart';
@@ -9,7 +10,7 @@ import '../providers/player_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/chart_provider.dart';
-import '../widgets/pixel_logo.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/now_playing_fab.dart';
 import '../widgets/track_action_sheet.dart';
 import 'playlist_screen.dart';
@@ -96,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (parsed.type) {
       case YoutubeLinkType.video:
       case YoutubeLinkType.shorts:
+      case YoutubeLinkType.live:
       case YoutubeLinkType.musicVideo:
         if (parsed.videoId == null) {
           _showError(context, 'Could not extract video ID');
@@ -205,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
         children: [
-          const PixelLogo(size: 40),
+          const BrandLogo(size: 40, borderRadius: BorderRadius.all(Radius.circular(10))),
           const Spacer(),
           _roundIconButton(
             icon: Icons.search,
@@ -393,7 +395,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const LogoWithHeadset(size: 120),
+                const BrandLogo(
+                  size: 120,
+                  borderRadius: BorderRadius.all(Radius.circular(28)),
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'No playlists yet',
@@ -439,6 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 18),
               _buildCategoryTabs(),
+              const SizedBox(height: 22),
+              _buildAppleMusicSection(context, chartProvider, playerProvider),
               const SizedBox(height: 22),
               if (feedKey != null)
                 _buildTrackShelf(
@@ -527,6 +534,104 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAppleMusicSection(
+    BuildContext context,
+    ChartProvider chartProvider,
+    PlayerProvider playerProvider,
+  ) {
+    final songs = chartProvider.recommendedSongs;
+    final albums = chartProvider.hotAlbums;
+    if (songs.isEmpty && albums.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (songs.isNotEmpty) ...[
+          const Text(
+            'Apple Music Ghana Hot 100',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 14),
+          _buildChartShelf(
+            items: songs.take(12).toList(),
+            onTap: (item) => _playChartItem(context, item, playerProvider),
+          ),
+          const SizedBox(height: 22),
+        ],
+        if (albums.isNotEmpty) ...[
+          const Text(
+            'Apple Music Ghana Hot Albums',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 14),
+          _buildChartShelf(
+            items: albums.take(12).toList(),
+            onTap: (item) => _playChartItem(context, item, playerProvider),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildChartShelf({
+    required List<ChartItem> items,
+    required void Function(ChartItem) onTap,
+  }) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return SizedBox(
+      height: 184,
+      child: ListView.separated(
+        clipBehavior: Clip.none,
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return SizedBox(
+            width: 138,
+            child: _AppleMusicChartCard(
+              item: item,
+              onTap: () => onTap(item),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _playChartItem(
+    BuildContext context,
+    ChartItem item,
+    PlayerProvider playerProvider,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final quality = context.read<SettingsProvider>().audioQuality;
+    final provider = context.read<PlaylistProvider>();
+    final results = await provider.searchSilently(item.searchQuery);
+    if (!context.mounted) return;
+    if (results.songs.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('No YouTube match for "${item.title}"'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final tracks = results.songs;
+    playerProvider.setQueue(tracks, startIndex: 0);
+    playerProvider.playTrack(tracks.first, quality: quality);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Playing "${tracks.first.title}"'),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -994,6 +1099,102 @@ class _HomeTrackCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AppleMusicChartCard extends StatelessWidget {
+  final ChartItem item;
+  final VoidCallback onTap;
+
+  const _AppleMusicChartCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 138,
+                  height: 138,
+                  child: item.artworkUrl == null
+                      ? _placeholderArtwork(context)
+                      : Image.network(
+                          item.artworkUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              _placeholderArtwork(context),
+                        ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(180),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '#${item.rank}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            item.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholderArtwork(BuildContext context) {
+    return Container(
+      color: const Color(0xFF252525),
+      alignment: Alignment.center,
+      child: Icon(
+        item.kind == ChartItemKind.album
+            ? Icons.album_rounded
+            : Icons.music_note_rounded,
+        color: Colors.white38,
+        size: 42,
       ),
     );
   }
