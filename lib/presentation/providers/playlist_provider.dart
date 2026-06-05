@@ -619,12 +619,15 @@ class PlaylistProvider extends ChangeNotifier {
         'podcasts' => 'Ghana podcasts latest episodes',
         _ => key,
       };
-      final tracks = await _repository.search(query);
+      final raw = await _repository.search(query);
       final seen = <String>{};
-      _homeFeeds[key] = [
-        for (final track in tracks)
+      final unique = <Track>[
+        for (final track in raw)
           if (seen.add(track.id)) track,
-      ].take(18).toList();
+      ];
+      _homeFeeds[key] = key == 'podcasts'
+          ? unique.take(18).toList()
+          : rankHomeFeedTracks(unique, 18);
     } catch (e) {
       _error = e.toString();
       _homeFeeds[key] = const [];
@@ -633,6 +636,109 @@ class PlaylistProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Rank home-feed tracks so that official tracks and music videos are
+  /// surfaced above DJ mixes, long-form sets, and other low-priority
+  /// content. The original order is used as a stable tie-breaker so the
+  /// YouTube relevance ranking is still respected among tracks that score
+  /// equally.
+  @visibleForTesting
+  static List<Track> rankHomeFeedTracks(List<Track> input, int limit) {
+    final indexed = input.indexed.toList();
+    indexed.sort((a, b) {
+      final byScore = _scoreTrack(b.$2).compareTo(_scoreTrack(a.$2));
+      if (byScore != 0) return byScore;
+      return a.$1.compareTo(b.$1);
+    });
+    return indexed.take(limit).map((e) => e.$2).toList();
+  }
+
+  static int _scoreTrack(Track track) {
+    final title = track.title.toLowerCase();
+    final author = (track.author ?? '').toLowerCase();
+    final durationSeconds = track.duration.inSeconds;
+    var score = 0;
+
+    if (_matchesAny(title, _officialKeywords)) {
+      score += 12;
+    }
+    if (_matchesAny(title, const ['music video', 'm/v'])) {
+      score += 6;
+    }
+    if (_matchesAny(title, const ['lyric', 'lyrics', 'lyric video'])) {
+      score += 4;
+    }
+    if (_matchesAny(author, _trustedAuthorKeywords)) {
+      score += 5;
+    }
+    if (_matchesAny(title, _mixKeywords)) {
+      score -= 20;
+    }
+    if (_matchesAny(author, _mixAuthorKeywords)) {
+      score -= 15;
+    }
+    if (durationSeconds > 0) {
+      if (durationSeconds > 12 * 60) {
+        score -= 10;
+      } else if (durationSeconds < 60) {
+        score -= 6;
+      } else if (durationSeconds <= 6 * 60) {
+        score += 3;
+      }
+    }
+    return score;
+  }
+
+  static bool _matchesAny(String haystack, List<String> needles) {
+    for (final needle in needles) {
+      if (haystack.contains(needle)) return true;
+    }
+    return false;
+  }
+
+  static const _officialKeywords = [
+    'official',
+    'official audio',
+    'official video',
+    'official music',
+  ];
+
+  static const _mixKeywords = [
+    'dj mix',
+    'mixtape',
+    'mix tape',
+    'nonstop',
+    'non-stop',
+    'non stop',
+    'megamix',
+    'mega mix',
+    'club mix',
+    'party mix',
+    'blend',
+    'mashup',
+    'mash up',
+    'best of',
+    'all time',
+    'full ep',
+    'full album',
+  ];
+
+  static const _mixAuthorKeywords = [
+    'dj ',
+    ' dj',
+    'mixtape',
+    'mixes',
+    'radio',
+  ];
+
+  static const _trustedAuthorKeywords = [
+    'vevo',
+    'records',
+    'music',
+    'official',
+    'entertainment',
+    'productions',
+  ];
 
   void clearError() {
     _error = null;

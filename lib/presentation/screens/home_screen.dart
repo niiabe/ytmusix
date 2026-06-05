@@ -29,6 +29,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const _tabs = ['Added', 'New', 'Trend', 'Podcasts', 'Favourites'];
   int _homeTab = 0;
+  bool _chartsVisible = true;
 
   String? get _activeFeedKey {
     if (_homeTab == 1) return 'new';
@@ -53,7 +54,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _selectHomeTab(int index) {
-    setState(() => _homeTab = index);
+    setState(() {
+      _homeTab = index;
+      _chartsVisible = false;
+    });
     final key = _activeFeedKey;
     if (key != null) {
       context.read<PlaylistProvider>().loadHomeFeed(key);
@@ -445,8 +449,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 18),
               _buildCategoryTabs(),
               const SizedBox(height: 22),
-              _buildAppleMusicSection(context, chartProvider, playerProvider),
-              const SizedBox(height: 22),
+              if (_chartsVisible)
+                _buildAppleMusicSection(context, chartProvider, playerProvider),
+              if (_chartsVisible) const SizedBox(height: 22),
               _buildPlaylistSection(context, provider, playerProvider),
               const SizedBox(height: 22),
               if (feedKey != null)
