@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0
+
+- Auto-download: every track you play is now saved in the background for offline listening, at the same audio quality you are playing it. Live streams are detected (`Track.isLive`) and never auto-downloaded.
+- Auto-download: when a playlist starts playing, the whole playlist is downloaded in the background so it becomes available offline.
+- Renamed the downloaded-music section from "Downloaded" to **Offline**, and the download action subtitle from "Cache this track" / "Cache for offline playback" to **"Download offline"**.
+- Added an audio/video switch on the player screen: toggle to watch the music video (full video surface via `video_player`) with seamless position handoff between audio and video; the video auto-pauses background audio.
+- Sound quality: default playback/download quality is now **High**, and the player screen adds an in-player audio quality selector plus a quality badge.
+- Added a **YouTube Music Top 100 Ghana** chart shelf on the home Browse screen (YouTube-search sourced), alongside the existing Apple Music Ghana shelves.
+- Changelog: the in-app About screen now shows only the 3 most recent updates.
+
 ## Unreleased
 
 - Home: category tabs (`New`, `Trend`, `Podcasts`, `Favourites`) now render content exclusive to that tab. The `Playlist` section (Added links + Recent tracks) and the user-playlist/recently-played fallback in the top-hits chart are hidden on category tabs, so no cross-contamination of datasets.

@@ -9,6 +9,7 @@ import '../../domain/entities/video.dart';
 import '../../domain/repositories/audio_repository.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../service/audio_handler.dart';
+import 'download_provider.dart';
 
 // ---------------------------------------------------------------------------
 // URL cache — maps trackId -> resolved stream URL so the next-track load
@@ -17,8 +18,9 @@ import '../../service/audio_handler.dart';
 
 class PlayerProvider extends ChangeNotifier {
   final AudioRepository _audioRepository;
+  final DownloadProvider? _downloadProvider;
 
-  PlayerProvider(this._audioRepository) {
+  PlayerProvider(this._audioRepository, {this._downloadProvider}) {
     _skipNextSubscription = _audioRepository.onSkipNextRequested.listen((_) {
       next();
     });
@@ -300,6 +302,17 @@ class PlayerProvider extends ChangeNotifier {
       }
       // Kick off background prefetch for upcoming tracks.
       unawaited(_prebufferNext(_currentIndex + 1, quality));
+      // Auto-download the currently played track for offline playback,
+      // unless it is a live stream (which cannot be downloaded).
+      if (_downloadProvider != null && !track.isLive) {
+        unawaited(
+          _downloadProvider.downloadTrack(
+            track,
+            _currentPlaylistId ?? track.id,
+            quality: quality.name,
+          ),
+        );
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -354,7 +367,7 @@ class PlayerProvider extends ChangeNotifier {
     Track track, {
     AudioQuality quality = AudioQuality.low,
   }) async {
-    return _audioRepository.getAudioUrl(track, quality: quality.name);
+    return _audioRepository.getVideoUrl(track, quality: quality.name);
   }
 
   Future<void> togglePlayPause() async {
@@ -394,6 +407,32 @@ class PlayerProvider extends ChangeNotifier {
       await playFromQueue(0);
     } else if (_currentTrack != null) {
       await _fetchAutoplayRecommendations();
+    }
+  }
+
+  Future<void> pauseAudio() async {
+    try {
+      if (_isPlaying) {
+        await _audioRepository.pause();
+        _isPlaying = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      _error = 'Failed to pause audio: ${e.toString()}';
+      notifyListeners();
+    }
+  }
+
+  Future<void> resumeAudio() async {
+    try {
+      if (!_isPlaying && _currentTrack != null) {
+        await _audioRepository.resume();
+        _isPlaying = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      _error = 'Failed to resume audio: ${e.toString()}';
+      notifyListeners();
     }
   }
 

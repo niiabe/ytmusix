@@ -28,6 +28,7 @@ class PlaylistScreen extends StatefulWidget {
 
 class _PlaylistScreenState extends State<PlaylistScreen> {
   bool _autoDownloadStarted = false;
+  bool _playlistAutoDownloadStarted = false;
   VoidCallback? _trackChangedHandler;
 
   @override
@@ -47,6 +48,15 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           prebufferCount: settings.prebufferCount,
           quality: settings.audioQuality.name,
         );
+        // Auto-download the whole playlist in the background once playback
+        // starts, so the entire playlist becomes available offline.
+        if (!_playlistAutoDownloadStarted) {
+          _playlistAutoDownloadStarted = true;
+          dl.downloadPlaylist(
+            widget.playlist,
+            quality: settings.audioQuality.name,
+          );
+        }
       };
       player.addTrackChangedListener(_trackChangedHandler!);
       

@@ -69,6 +69,7 @@ class DownloadService {
     String playlistId, {
     String quality = 'medium',
   }) async {
+    if (track.isLive) return;
     if (await isTrackDownloaded(track.id)) return;
     final dir = await _getDownloadDir(playlistId);
     final filePath = p.join(dir, '${track.id}.mp4');

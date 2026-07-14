@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'Downloaded',
+                        'Offline',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -305,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'No downloaded tracks yet. Tap the download icon on a playlist to save it for offline playback.',
+                            'No offline tracks yet. Tap the download icon on a playlist to save it for offline playback.',
                             style: TextStyle(color: Colors.white54),
                           ),
                         ),
@@ -653,6 +653,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_chartsVisible)
                 _buildAppleMusicSection(context, chartProvider, playerProvider),
               if (_chartsVisible) const SizedBox(height: 22),
+              if (_chartsVisible)
+                _buildYouTubeMusicSection(context, chartProvider, playerProvider),
+              if (_chartsVisible) const SizedBox(height: 22),
               if (_isPlaylistTab)
                 _buildPlaylistSection(context, provider, playerProvider),
               if (_isPlaylistTab) const SizedBox(height: 22),
@@ -785,6 +788,31 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: (item) => _playChartItem(context, item, playerProvider),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildYouTubeMusicSection(
+    BuildContext context,
+    ChartProvider chartProvider,
+    PlayerProvider playerProvider,
+  ) {
+    final songs = chartProvider.youTubeGhanaSongs;
+    if (songs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'YouTube Music Top 100 Ghana',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 14),
+        _buildChartShelf(
+          items: songs.take(12).toList(),
+          onTap: (item) => _playChartItem(context, item, playerProvider),
+        ),
       ],
     );
   }
@@ -1830,7 +1858,7 @@ class _DownloadedHeaderPill extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 const Text(
-                  'Downloaded',
+                  'Offline',
                   style: TextStyle(
                     color: Color(0xFF1DB954),
                     fontSize: 12,

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/entities/chart_item.dart';
+import '../data/datasources/remote/youtube_remote_datasource.dart';
 
 enum AppleTopSongsScope {
   global('Global', 'us'),
@@ -17,13 +18,17 @@ enum AppleTopSongsScope {
 }
 
 class ChartService {
-  ChartService({http.Client? client, DateTime Function()? now})
-    : _client = client ?? http.Client(),
-      _now = now ?? DateTime.now;
+  ChartService({
+    http.Client? client,
+    DateTime Function()? now,
+    this._remoteDataSource,
+  })  : _client = client ?? http.Client(),
+        _now = now ?? DateTime.now;
 
   static const recommendedSongsKey = 'apple_ghana_hot_songs';
   static const hotAlbumsKey = 'apple_ghana_hot_albums';
   static const billboardAlbumsKey = 'billboard_200_albums';
+  static const youTubeGhanaSongsKey = 'youtube_ghana_top_100_songs';
 
   static const _appleGhanaSongsUrl =
       'https://rss.marketingtools.apple.com/api/v2/gh/music/most-played/100/songs.json';
@@ -36,6 +41,7 @@ class ChartService {
 
   final http.Client _client;
   final DateTime Function() _now;
+  final YoutubeRemoteDataSource? _remoteDataSource;
 
   Future<List<ChartItem>> getRecommendedSongs({bool force = false}) {
     return _getCachedChart(
@@ -87,6 +93,40 @@ class ChartService {
       force: force,
       fetch: _fetchBillboard200,
     );
+  }
+
+  /// YouTube-sourced "Top 100 Ghana" chart. There is no official YouTube
+  /// Music chart API in this build, so this approximates the list by
+  /// searching YouTube for trending Ghana music and ranking the results.
+  Future<List<ChartItem>> getYouTubeTopGhanaSongs({bool force = false}) {
+    return _getCachedChart(
+      cacheKey: youTubeGhanaSongsKey,
+      maxAge: const Duration(hours: 24),
+      force: force,
+      fetch: _fetchYouTubeTopGhanaSongs,
+    );
+  }
+
+  Future<List<ChartItem>> _fetchYouTubeTopGhanaSongs() async {
+    if (_remoteDataSource == null) return const [];
+    final tracks = await _remoteDataSource.search(
+      'Ghana top songs',
+      limit: 50,
+    );
+    if (tracks.isEmpty) return const [];
+    return tracks.indexed.map((entry) {
+      final track = entry.$2;
+      return ChartItem(
+        id: track.id,
+        title: track.title,
+        artist: track.author ?? 'Unknown',
+        artworkUrl: track.thumbnailUrl,
+        sourceName: 'YouTube Music Top 100 Ghana',
+        sourceUrl: 'https://www.youtube.com/watch?v=${track.id}',
+        rank: entry.$1 + 1,
+        kind: ChartItemKind.song,
+      );
+    }).toList();
   }
 
   Future<List<ChartItem>> getAppleAlbumSongs(

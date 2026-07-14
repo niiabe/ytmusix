@@ -67,6 +67,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
           durationSeconds: track.durationSeconds,
           author: track.author,
           index: 0,
+          isLive: track.isLive,
         ),
       );
       return playlist;
@@ -146,6 +147,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
               durationSeconds: t.duration.inSeconds,
               author: t.author,
               index: t.index,
+              isLive: t.isLive,
             ),
           )
           .toList(),
@@ -168,6 +170,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
         durationSeconds: track.duration.inSeconds,
         author: track.author,
         index: track.index,
+        isLive: track.isLive,
       ),
     );
   }
@@ -200,6 +203,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
         durationSeconds: track.duration.inSeconds,
         author: track.author,
         index: track.index,
+        isLive: track.isLive,
       ),
     );
   }

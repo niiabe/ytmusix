@@ -9,6 +9,7 @@ class TrackModel {
   final int index;
   final String? albumId;
   final String? artistId;
+  final bool isLive;
 
   TrackModel({
     required this.id,
@@ -19,6 +20,7 @@ class TrackModel {
     this.index = 0,
     this.albumId,
     this.artistId,
+    this.isLive = false,
   });
 
   factory TrackModel.fromMap(Map<String, dynamic> map) {
@@ -31,6 +33,7 @@ class TrackModel {
       index: map['idx'] as int? ?? 0,
       albumId: map['albumId'] as String?,
       artistId: map['artistId'] as String?,
+      isLive: (map['isLive'] as int? ?? 0) == 1,
     );
   }
 
@@ -44,6 +47,7 @@ class TrackModel {
       'idx': index,
       'albumId': albumId,
       'artistId': artistId,
+      'isLive': isLive ? 1 : 0,
     };
   }
 
@@ -57,6 +61,7 @@ class TrackModel {
       index: index,
       albumId: albumId,
       artistId: artistId,
+      isLive: isLive,
     );
   }
 }

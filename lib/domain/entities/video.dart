@@ -7,6 +7,7 @@ class Track {
   final int index;
   final String? albumId;
   final String? artistId;
+  final bool isLive;
 
   const Track({
     required this.id,
@@ -17,6 +18,7 @@ class Track {
     this.index = 0,
     this.albumId,
     this.artistId,
+    this.isLive = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +30,7 @@ class Track {
         'index': index,
         'albumId': albumId,
         'artistId': artistId,
+        'isLive': isLive,
       };
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
@@ -39,5 +42,6 @@ class Track {
         index: (json['index'] as num?)?.toInt() ?? 0,
         albumId: json['albumId'] as String?,
         artistId: json['artistId'] as String?,
+        isLive: json['isLive'] as bool? ?? false,
       );
 }

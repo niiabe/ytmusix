@@ -27,7 +27,7 @@ class PlaylistDatabase {
     final path = join(dbPath, 'ytmusix.db');
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -173,6 +173,16 @@ class PlaylistDatabase {
       }
       if (!trackColNames.contains('artistId')) {
         await db.execute('ALTER TABLE tracks ADD COLUMN artistId TEXT');
+      }
+    }
+    if (oldVersion < 9) {
+      // Track whether a video is a YouTube live broadcast so auto-download
+      // can skip live streams (they cannot be downloaded).
+      final trackCols = await db.rawQuery('PRAGMA table_info(tracks)');
+      final trackColNames = trackCols.map((c) => c['name'] as String).toSet();
+      if (!trackColNames.contains('isLive')) {
+        await db.execute(
+            'ALTER TABLE tracks ADD COLUMN isLive INTEGER NOT NULL DEFAULT 0');
       }
     }
   }
@@ -412,6 +422,7 @@ class PlaylistDatabase {
         durationSeconds: tracks[i].durationSeconds,
         author: tracks[i].author,
         index: i,
+        isLive: tracks[i].isLive,
       );
     }
     return tracks;

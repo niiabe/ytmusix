@@ -3,7 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
 import '../../core/constants/repeat_mode.dart' as repeat;
+import '../../core/constants/audio_quality.dart';
 import '../../core/utils/format_duration.dart';
 import '../../domain/entities/video.dart';
 import '../../service/lyrics_service.dart';
@@ -14,6 +16,12 @@ import '../providers/settings_provider.dart';
 import '../widgets/queue_sheet.dart';
 import 'album_screen.dart';
 import 'artist_screen.dart';
+
+String _qualityLabel(AudioQuality q) => switch (q) {
+      AudioQuality.low => 'Low',
+      AudioQuality.medium => 'Medium',
+      AudioQuality.high => 'High',
+    };
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -27,6 +35,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   bool _controlsVisible = true;
 
+  VideoPlayerController? _videoController;
+  bool _isVideoMode = false;
+
   void _toggleControls() {
     setState(() => _controlsVisible = !_controlsVisible);
   }
@@ -35,6 +46,110 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (!_controlsVisible) {
       setState(() => _controlsVisible = true);
     }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _exitVideoMode() async {
+    final player = context.read<PlayerProvider>();
+    final position = _videoController?.value.position ?? Duration.zero;
+    await _videoController?.pause();
+    await _videoController?.dispose();
+    _videoController = null;
+    if (_isVideoMode) {
+      setState(() => _isVideoMode = false);
+    }
+    await player.seekTo(position);
+    await player.resumeAudio();
+  }
+
+  Future<void> _toggleVideoMode() async {
+    final player = context.read<PlayerProvider>();
+    final settings = context.read<SettingsProvider>();
+
+    if (_isVideoMode) {
+      await _exitVideoMode();
+      _showControls();
+      return;
+    }
+
+    final track = player.currentTrack;
+    if (track == null) return;
+
+    await player.pauseAudio();
+    try {
+      final url = await player.getVideoUrl(track, quality: settings.audioQuality);
+      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await controller.initialize();
+      controller.addListener(() => setState(() {}));
+      await controller.seekTo(player.position);
+      await controller.play();
+      _videoController = controller;
+      setState(() => _isVideoMode = true);
+    } catch (e) {
+      await player.resumeAudio();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Video unavailable: $e')),
+        );
+      }
+    }
+    _showControls();
+  }
+
+  void _showQualitySheet(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final player = context.read<PlayerProvider>();
+    final track = player.currentTrack;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+                child: Text(
+                  'Audio / Video Quality',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+              ...AudioQuality.values.map((q) {
+                final selected = settings.audioQuality == q;
+                return ListTile(
+                  leading: Icon(
+                    selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                    color: selected ? Colors.greenAccent : Colors.white54,
+                  ),
+                  title: Text(_qualityLabel(q)),
+                  onTap: () async {
+                    await settings.setAudioQuality(q);
+                    if (track != null && _isVideoMode) {
+                      await _exitVideoMode();
+                    }
+                    if (track != null) {
+                      final pos = player.position;
+                      await player.playTrack(track, quality: q);
+                      await player.seekTo(pos);
+                    }
+                    if (context.mounted) Navigator.of(sheetContext).pop();
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -56,6 +171,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
             final track = player.currentTrack!;
             final isFav = playlistProvider.isFavorite(track.id);
+
+            final bool isVideoPlaying = _isVideoMode &&
+                _videoController != null &&
+                _videoController!.value.isPlaying;
+            final bool isPlaying =
+                _isVideoMode ? isVideoPlaying : player.isPlaying;
+            final bool isLoading = _isVideoMode ? false : player.isLoading;
 
             return Scaffold(
               body: Stack(
@@ -82,7 +204,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                             ),
                             const SizedBox(height: 28),
-                            _Artwork(imageUrl: track.thumbnailUrl),
+                            _isVideoMode && _videoController != null
+                                ? _VideoSurface(controller: _videoController!)
+                                : _Artwork(imageUrl: track.thumbnailUrl),
                             const SizedBox(height: 28),
                             Row(
                               children: [
@@ -146,18 +270,69 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     _showControls();
                                   },
                                 ),
+                                IconButton(
+                                  icon: Icon(
+                                    _isVideoMode
+                                        ? Icons.videocam_rounded
+                                        : Icons.music_video_rounded,
+                                    color: _isVideoMode
+                                        ? Colors.greenAccent
+                                        : Colors.white54,
+                                  ),
+                                  tooltip: _isVideoMode
+                                      ? 'Switch to audio'
+                                      : 'Switch to video',
+                                  onPressed: _toggleVideoMode,
+                                ),
+                                GestureDetector(
+                                  onTap: () => _showQualitySheet(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white12,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white24,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _qualityLabel(settings.audioQuality),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 24),
-                            _SeekWaveform(
-                              position: player.position,
-                              duration: player.duration,
-                              bufferedPosition: player.bufferedPosition,
-                              onSeek: (position) {
-                                player.seekTo(position);
-                                _showControls();
-                              },
-                            ),
+                            _isVideoMode && _videoController != null
+                                ? VideoProgressIndicator(
+                                    _videoController!,
+                                    allowScrubbing: true,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    colors: VideoProgressColors(
+                                      playedColor: Colors.greenAccent,
+                                      bufferedColor: Colors.white24,
+                                      backgroundColor: Colors.white12,
+                                    ),
+                                  )
+                                : _SeekWaveform(
+                                    position: player.position,
+                                    duration: player.duration,
+                                    bufferedPosition: player.bufferedPosition,
+                                    onSeek: (position) {
+                                      player.seekTo(position);
+                                      _showControls();
+                                    },
+                                  ),
                             const SizedBox(height: 28),
                             AnimatedOpacity(
                               opacity: _controlsVisible ? 1 : 0,
@@ -182,11 +357,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                         _ControlButton(
                                           icon: Icons.skip_previous_rounded,
                                           onPressed: () {
+                                            if (_isVideoMode) {
+                                              _videoController?.pause();
+                                              _videoController?.dispose();
+                                              _videoController = null;
+                                              setState(
+                                                () => _isVideoMode = false,
+                                              );
+                                            }
                                             player.previous();
                                             _showControls();
                                           },
                                         ),
-                                        player.isLoading
+                                        isLoading
                                             ? const SizedBox(
                                                 width: 62,
                                                 height: 62,
@@ -204,13 +387,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                                     shape: const CircleBorder(),
                                                   ),
                                                   icon: Icon(
-                                                    player.isPlaying
+                                                    isPlaying
                                                         ? Icons.pause_rounded
                                                         : Icons.play_arrow_rounded,
                                                     size: 34,
                                                   ),
                                                   onPressed: () {
-                                                    player.togglePlayPause();
+                                                    if (_isVideoMode &&
+                                                        _videoController != null) {
+                                                      if (_videoController!
+                                                          .value
+                                                          .isPlaying) {
+                                                        _videoController!.pause();
+                                                      } else {
+                                                        _videoController!.play();
+                                                      }
+                                                    } else {
+                                                      player.togglePlayPause();
+                                                    }
                                                     _showControls();
                                                   },
                                                 ),
@@ -220,6 +414,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                           onPressed: player.currentIndex + 1 <
                                                   player.queue.length
                                               ? () {
+                                                  if (_isVideoMode) {
+                                                    _videoController?.pause();
+                                                    _videoController?.dispose();
+                                                    _videoController = null;
+                                                    setState(
+                                                      () => _isVideoMode = false,
+                                                    );
+                                                  }
                                                   player.next();
                                                   _showControls();
                                                 }
@@ -391,7 +593,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ? Icons.downloading_rounded
               : Icons.download_rounded,
           title: isDownloaded
-              ? 'Downloaded'
+              ? 'Offline'
               : isDownloading
               ? 'Downloading'
               : 'Download',
@@ -399,7 +601,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ? 'Available offline'
               : isDownloading
               ? 'Already in progress'
-              : 'Cache this track',
+              : 'Download offline',
           onTap: isDownloaded || isDownloading
               ? null
               : () {
@@ -1167,6 +1369,47 @@ class _ArtworkImage extends StatelessWidget {
               errorWidget: (context, url, error) => _ArtworkFallback(),
             )
           : _ArtworkFallback(),
+    );
+  }
+}
+
+class _VideoSurface extends StatelessWidget {
+  final VideoPlayerController controller;
+
+  const _VideoSurface({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context).width.clamp(220.0, 280.0);
+    final videoSize = controller.value.isInitialized
+        ? controller.value.size
+        : const Size(16, 9);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(120),
+            blurRadius: 34,
+            offset: const Offset(0, 22),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: videoSize.width,
+              height: videoSize.height,
+              child: VideoPlayer(controller),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

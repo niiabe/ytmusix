@@ -89,6 +89,7 @@ class YoutubeRemoteDataSource {
                 durationSeconds: duration?.inSeconds ?? 0,
                 thumbnailUrl: _highQualityThumbnail(video.id.value),
                 index: 0,
+                isLive: video.isLive,
               );
             }),
           );
@@ -102,6 +103,7 @@ class YoutubeRemoteDataSource {
             durationSeconds: tracks[i].durationSeconds,
             thumbnailUrl: tracks[i].thumbnailUrl,
             index: i,
+            isLive: tracks[i].isLive,
           );
         }
 
@@ -143,16 +145,17 @@ class YoutubeRemoteDataSource {
       durationSeconds: video.duration?.inSeconds ?? 0,
       thumbnailUrl: _highQualityThumbnail(video.id.value),
       index: 0,
+      isLive: video.isLive,
     );
   }
 
-  Future<List<TrackModel>> search(String query) async {
+  Future<List<TrackModel>> search(String query, {int limit = 25}) async {
     try {
       final list = await _yt.search.search(query).timeout(_timeout);
       final tracks = <TrackModel>[];
       var index = 0;
       for (final video in list) {
-        if (index >= 25) break;
+        if (index >= limit) break;
         tracks.add(
           TrackModel(
             id: video.id.value,
@@ -161,6 +164,7 @@ class YoutubeRemoteDataSource {
             durationSeconds: video.duration?.inSeconds ?? 0,
             thumbnailUrl: _highQualityThumbnail(video.id.value),
             index: index,
+            isLive: video.isLive,
           ),
         );
         index++;
@@ -213,6 +217,7 @@ class YoutubeRemoteDataSource {
           durationSeconds: recommendation.duration?.inSeconds ?? 0,
           thumbnailUrl: _highQualityThumbnail(recommendation.id.value),
           index: tracks.length,
+          isLive: recommendation.isLive,
         ),
       );
     }
@@ -352,6 +357,7 @@ class YoutubeRemoteDataSource {
           durationSeconds: video.duration?.inSeconds ?? 0,
           thumbnailUrl: _highQualityThumbnail(video.id.value),
           index: i,
+          isLive: video.isLive,
         ),
       );
     }

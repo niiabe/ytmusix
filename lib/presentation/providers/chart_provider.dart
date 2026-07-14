@@ -14,6 +14,7 @@ class ChartProvider extends ChangeNotifier {
   List<ChartItem> _recommendedSongs = [];
   List<ChartItem> _hotAlbums = [];
   List<ChartItem> _appleTopSongs = [];
+  List<ChartItem> _youTubeGhanaSongs = [];
   AppleTopSongsScope _appleTopSongsScope = AppleTopSongsScope.global;
   final Set<String> _loadingKeys = {};
   String? _error;
@@ -21,6 +22,7 @@ class ChartProvider extends ChangeNotifier {
   List<ChartItem> get recommendedSongs => _recommendedSongs;
   List<ChartItem> get hotAlbums => _hotAlbums;
   List<ChartItem> get appleTopSongs => _appleTopSongs;
+  List<ChartItem> get youTubeGhanaSongs => _youTubeGhanaSongs;
   AppleTopSongsScope get appleTopSongsScope => _appleTopSongsScope;
   String? get error => _error;
 
@@ -31,6 +33,7 @@ class ChartProvider extends ChangeNotifier {
       loadRecommendedSongs(force: force),
       loadHotAlbums(force: force),
       loadAppleTopSongs(force: force),
+      loadYouTubeGhanaSongs(force: force),
     ]);
   }
 
@@ -67,6 +70,14 @@ class ChartProvider extends ChangeNotifier {
 
   Future<List<ChartItem>> getAlbumSongs(ChartItem album) {
     return _chartService.getAppleAlbumSongs(album);
+  }
+
+  Future<void> loadYouTubeGhanaSongs({bool force = false}) {
+    return _load(
+      ChartService.youTubeGhanaSongsKey,
+      () => _chartService.getYouTubeTopGhanaSongs(force: force),
+      (items) => _youTubeGhanaSongs = items,
+    );
   }
 
   Future<void> _load(

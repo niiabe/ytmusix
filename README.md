@@ -1,77 +1,132 @@
-# YTMusix Canary - YouTube Music Streamer
+<p align="center">
+  <img src="tool/icon.png" width="120" alt="YTMusix Canary logo" />
+</p>
 
-A Flutter mobile app that streams audio from public YouTube playlists, single videos, and mixes. No backend, no ads. Built for Android only with a modern dark music-player interface. YTMusix Canary is the Android-only canary build of the YTMusix project.
+<h1 align="center">YTMusix Canary</h1>
 
-## Features
+<p align="center">
+  <b>YouTube Music Streamer for Android</b><br/>
+  Stream audio from public YouTube playlists, videos, and mixes — no backend, no ads.
+</p>
+
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white" />
+  <img alt="Built with" src="https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white" />
+  <img alt="License" src="https://img.shields.io/badge/license-Personal%20%2F%20Educational-lightgrey" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.5.0%2B9-blue" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/niiabe/ytmusix/releases/download/v1.5.0/YTMusix-Canary-v1.5.0.apk">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download-APK%20v1.5.0-3DDC84?logo=android&logoColor=white" />
+  </a>
+</p>
+
+---
+
+YTMusix Canary is the **Android-only** canary build of [YTMusix](https://github.com/niiabe/ytmusix), a
+Flutter music player that pulls audio from public YouTube content. It is built around an offline-first
+design: tracks you play are cached to your device, and play straight from local storage the next time.
+
+## 📲 Download
+
+Get the latest canary build (debug-signed, sideload-only):
+
+- **APK (v1.5.0):** [YTMusix-Canary-v1.5.0.apk](https://github.com/niiabe/ytmusix/releases/download/v1.5.0/YTMusix-Canary-v1.5.0.apk)
+
+> To install, enable **Install unknown apps** for your file manager / browser, then open the APK.
+> Auto-updates are not included — grab a fresh build from the
+> [Releases](https://github.com/niiabe/ytmusix/releases) page.
+
+## ✨ Highlights
+
+- 🎧 **Auto-download on play** — every track you play is saved in the background for offline listening
+  (live streams are skipped automatically).
+- 📥 **Playlists download themselves** — start a playlist and the whole thing downloads in the background.
+- 🟢 **Offline library** — your downloaded music lives under the **Offline** section, one tap away from Browse.
+- 🎬 **Audio / Video switch** — flip the player to watch the music video with seamless handoff from audio.
+- 🔊 **High-quality audio** — defaults to **High** quality, with an in-player quality selector and a quality badge.
+- 🇬🇭 **Charts** — Apple Music Ghana Hot 100 + Hot Albums, and a **YouTube Music Top 100 Ghana** shelf.
+
+## 📑 Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Known Issues](#known-issues)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+## 🎵 Features
 
 ### Playback
-- **Offline-first** — plays from local files when downloaded, streams only when unavailable; no redundant redirect resolution
-- **Faster stream startup** — resolves playback redirects once and shows the selected track immediately while audio loads
-- **Smooth seek and buffer UI** — optimistic seeking plus buffered progress in the full player waveform and mini player
-- **Play/pause state indicators** — toggle icon reflects playback status on home screen, playlist screen, player bar, and expanded player
-- **Queue management** — play, pause, skip, previous, shuffle, repeat, auto-advance on track completion
-- **Autoplay** — when the queue ends, seamlessly fetches related YouTube tracks and keeps playing (designed by [BENJAMINDARKO](https://github.com/BENJAMINDARKO))
-- **Sleep timer** — 15m/30m/60m/custom timer to auto-stop playback
-- **Lockscreen & notification controls** — Android media notification with play/pause/skip buttons
+- **Offline-first** — plays from local files when downloaded, streams only when unavailable.
+- **Faster stream startup** — resolves playback redirects once and shows the track immediately while audio loads.
+- **Smooth seek & buffer UI** — optimistic seeking plus buffered progress in the full player and mini player.
+- **Queue management** — play, pause, skip, previous, shuffle, repeat, auto-advance on track completion.
+- **Autoplay** — when the queue ends, seamlessly fetches related YouTube tracks and keeps playing.
+- **Sleep timer** — 15m / 30m / 60m / custom timer to auto-stop playback.
+- **Lockscreen & notification controls** — Android media notification with play/pause/skip buttons.
 
 ### Import & Search
-- **YouTube search** — search YouTube directly from the app, play results instantly
-- **Silent search cache** — `PlaylistProvider.searchSilently` normalizes queries (trim + case + whitespace), serves repeat lookups from an in-memory map, and falls back to a 7-day SharedPreferences cache (`silent_search_cache_v1`) before hitting the network
-- **Smart URL import** — paste a video, playlist, shorts, or music link; automatically detected via switch-based parser
-- **Instant video playback** — single video and shorts links play audio immediately without opening a playlist view
-- **Playlist import** — playlist and mix URLs open the playlist detail screen for browsing
-- **Auto-save to library** — searched and played tracks are automatically saved to your homescreen as single-track playlists
+- **YouTube search** — search YouTube directly and play results instantly.
+- **Silent search cache** — normalized query cache (in-memory + 7-day `SharedPreferences`) before hitting the network.
+- **Smart URL import** — paste a video, playlist, shorts, or music link; detected via a switch-based parser.
+- **Instant video playback** — single video and shorts links play audio immediately.
+- **Auto-save to library** — searched and played tracks are saved to your home screen as single-track playlists.
 
-### Downloads & Cache
-- **Per-track download** — download individual tracks directly from the playlist list
-- **Playlist download** — bulk download with per-track progress, percentage, and cancel support
-- **Download status colors** — green icon when fully downloaded, orange while downloading, spinner for in-progress tracks
-- **Home screen download** — download playlists directly from the home screen card (with cached tracks)
-- **Cache management** — view total cache size in settings; clear per-playlist or all cached downloads
-- **Pre-download ahead** — silently downloads the next tracks in the queue so there's no delay between songs
+### Downloads & Offline
+- **Auto-download on play** — the track you're playing is saved in the background at the quality you're hearing.
+- **Playlist download** — the full playlist downloads in the background when you start playing it.
+- **Per-track download** — download individual tracks straight from the playlist list.
+- **Download status** — green when fully downloaded, orange while downloading, spinner for in-progress tracks.
+- **Offline section** — the Browse header "Offline" pill opens a bottom sheet of all cached tracks.
+- **Cache management** — view total cache size, clear per-playlist or all downloads.
+
+### Charts
+- **Apple Music Ghana Hot 100** & **Hot Albums** — official Apple RSS charts.
+- **YouTube Music Top 100 Ghana** — trending Ghana music sourced from YouTube search.
 
 ### Playlist Management
-- **Sort playlists** — by title, date added, or track count
-- **Import/Export** — backup and restore your library as JSON, XML, or Markdown
-- **Swipe to delete** — remove playlists with a swipe
-- **Rename playlists** — edit playlist title inline
-- **Reorder tracks** — long-press drag to reorder tracks within a playlist
-- **Remove individual tracks** — swipe-to-delete on any track
-- **Star / Favorites** — star/unstar tracks anywhere (playlist, player, search); dedicated "Favorites" playlist card on home screen
+- **Sort playlists** — by title, date added, or track count.
+- **Import / Export** — backup and restore your library as JSON, XML, or Markdown.
+- **Swipe to delete / Reorder / Rename** — full playlist editing.
+- **Favorites** — star/unstar tracks anywhere; dedicated Favorites shelf on the home screen.
 
 ### UI
-- **Modern Browse home** — large-title browse screen with rounded controls, category tabs, horizontal playlist artwork, and ranked top hits
-- **Exclusive category tabs** — `New`, `Trend`, `Podcasts`, and `Favourites` only show tracks natively belonging to that tab. The `Added` tab keeps the user's imported playlists, "Added links", and recently played tracks; on the other tabs none of those leak into the list view
-- **Downloaded pill** — right-aligned `Downloaded` chip in the Browse header (green down-arrow icon) opens a bottom sheet of all cached tracks for offline playback
-- **Expanded player** — full-screen now-playing view with large artwork, gradient background, waveform seek control, favorite action, and compact transport controls
-- **Smart autoplay** — when the queue ends, YTMusix fetches related recommendations from YouTube and keeps playback going; falls back to stop if no recommendations are available
-- **A/V switcher** — audio plays in-app while a track-row "Copy YouTube link" action exposes the YouTube URL for video viewing in a browser
-- **Modern secondary screens** — Search, Playlist, Settings, Login, track rows, and mini player share the same rounded dark visual language
-- **Mini player** — floating bottom player with artwork, queue access, transport controls, active progress, and buffered progress
-- **Dark theme** — music-app-inspired dark UI with a bird/mascot launcher icon and green brand accent (YTMusix Canary build)
+- **Modern Browse home** — large-title browse screen, category tabs, horizontal artwork, ranked top hits.
+- **Exclusive category tabs** — `Added`, `New`, `Trend`, `Podcasts`, `Favourites` keep their own datasets.
+- **Expanded player** — full-screen now-playing with large artwork, gradient background, waveform seek, and an
+  **audio / video switch** plus a quality selector and quality badge.
+- **A/V switcher** — "Copy YouTube link" exposes the video URL while audio plays in-app; the video switch plays it inline.
+- **Dark theme** — music-app-inspired dark UI with the bird/mascot launcher icon and green brand accent.
 
-## Tech Stack
+## 🛠 Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Framework | Flutter (Dart) |
-| Architecture | Hexagonal (domain/data/presentation) |
+| Architecture | Hexagonal (domain / data / presentation) |
 | State | Provider |
 | YouTube API | `youtube_explode_dart` 3.1.0 (patched client version) |
 | Audio playback | `just_audio` 0.9.46 |
-| Lockscreen/notification | `audio_service` 0.18.18 |
+| Video playback | `video_player` 2.11.1 |
+| Lockscreen / notification | `audio_service` 0.18.18 |
 | Storage | sqflite (SQLite) |
 | Secure storage | flutter_secure_storage |
 | Downloads | path_provider + http |
 | Auth | WebView cookie extraction |
 | Platforms | Android |
 
-## Prerequisites
+## ✅ Prerequisites
 
-- Flutter SDK ^3.12.0
-- Android device/emulator for Android builds
+- Flutter SDK `^3.12.0`
+- Android device / emulator
 
-## Setup
+## 🚀 Setup
 
 ```bash
 git clone https://github.com/niiabe/ytmusix.git
@@ -79,21 +134,20 @@ cd ytmusix
 flutter pub get
 ```
 
-### Pub Cache Patch (youtube_explode_dart)
+### Pub Cache Patch (`youtube_explode_dart`)
 
-The `youtube_explode_dart` package needs a patch to return non-empty browse API results:
+The `youtube_explode_dart` package needs a small patch so the browse API returns non-empty results:
 
 **File:** `$PUB_CACHE/hosted/pub.dev/youtube_explode_dart-3.1.0/lib/src/reverse_engineering/youtube_http_client.dart`
 
 Change the InnerTube client context to:
+
 ```dart
 'clientName': "WEB",
 'clientVersion': "2.20250601.00.00",
 ```
 
-Without this patch, the browse API returns empty `contents` and mix playlists fail to load.
-
-> **Note:** This patch is overwritten on `flutter pub upgrade` — must be re-applied.
+> **Note:** This patch is overwritten on `flutter pub upgrade` and must be re-applied.
 
 ### Run (Debug)
 
@@ -101,135 +155,64 @@ Without this patch, the browse API returns empty `contents` and mix playlists fa
 flutter run
 ```
 
-### Android
-
-Run on an Android device or emulator:
+### Android build
 
 ```bash
-flutter run -d <android-device-id>
+flutter run -d <android-device-id>      # debug on a device/emulator
+flutter build apk --release             # release APK
 ```
 
-Build a release APK:
+Output: `build/app/outputs/flutter-apk/app-release.apk` (~60 MB)
 
-```bash
-flutter build apk --release
-```
-
-Output: `build/app/outputs/flutter-apk/app-release.apk` (~60MB)
-
-## Project Structure
+## 📂 Project Structure
 
 ```
 lib/
 ├── app.dart                        # App entry point + theme
 ├── main.dart                       # DI + AudioService.init
 ├── core/
-│   ├── constants/
-│   │   ├── app_constants.dart
-│   │   ├── audio_quality.dart
-│   │   ├── playlist_sort_mode.dart
-│   │   └── repeat_mode.dart
-│   ├── theme/
-│   │   └── app_theme.dart          # Dark music-app theme
-│   └── utils/
-│       ├── format_duration.dart
-│       ├── network_utils.dart      # Redirect resolution
-│       └── youtube_link_parser.dart # Switch-based URL type detection
+│   ├── constants/                  # app_constants, audio_quality, playlist_sort_mode, repeat_mode
+│   ├── theme/app_theme.dart        # Dark music-app theme
+│   └── utils/                      # format_duration, network_utils, youtube_link_parser
 ├── domain/
-│   ├── entities/
-│   │   ├── playlist.dart
-│   │   ├── video.dart              # Track entity
-│   │   ├── chart_item.dart
-│   │   └── search_result_models.dart
-│   └── repositories/
-│       ├── audio_repository.dart
-│       └── playlist_repository.dart
+│   ├── entities/                   # playlist, video (Track), chart_item, search_result_models
+│   └── repositories/               # audio_repository, playlist_repository
 ├── data/
 │   ├── datasources/
-│   │   ├── remote/
-│   │   │   ├── youtube_remote_datasource.dart
-│   │   │   └── authenticated_client.dart
-│   │   └── local/
-│   │       └── playlist_database.dart  # SQLite
-│   ├── models/
-│   │   ├── playlist_model.dart
-│   │   └── video_model.dart
-│   └── repositories/
-│       ├── audio_repository_impl.dart
-│       └── playlist_repository_impl.dart
+│   │   ├── remote/youtube_remote_datasource.dart
+│   │   └── local/playlist_database.dart   # SQLite
+│   ├── models/                     # playlist_model, video_model
+│   └── repositories/               # audio_repository_impl, playlist_repository_impl
 ├── presentation/
-│   ├── screens/
-│   │   ├── home_screen.dart        # Browse layout + playlist shelf
-│   │   ├── player_screen.dart      # Full-screen waveform player
-│   │   ├── playlist_screen.dart    # Modern playlist detail
-│   │   ├── search_screen.dart      # YouTube search
-│   │   ├── settings_screen.dart    # Top-level settings menu
-│   │   ├── playback_settings_screen.dart
-│   │   ├── storage_settings_screen.dart
-│   │   ├── youtube_settings_screen.dart
-│   │   ├── backup_settings_screen.dart
-│   │   ├── album_screen.dart       # Album detail with playback
-│   │   ├── artist_screen.dart      # Artist page
-│   │   ├── about_screen.dart       # Version + in-app changelog
-│   │   ├── licenses_screen.dart
-│   │   ├── contributors_screen.dart
-│   │   └── login_screen.dart       # WebView Google auth
-│   ├── providers/
-│   │   ├── player_provider.dart
-│   │   ├── playlist_provider.dart
-│   │   ├── download_provider.dart
-│   │   ├── settings_provider.dart
-│   │   └── chart_provider.dart
-│   └── widgets/
-│       ├── player_bar.dart
-│       ├── video_tile.dart
-│       ├── playlist_card.dart
-│       ├── now_playing_card.dart
-│       ├── now_playing_fab.dart
-│       ├── queue_sheet.dart
-│       ├── track_action_sheet.dart
-│       └── brand_logo.dart
-└── service/
-    ├── audio_handler.dart          # MusicAudioHandler (audio_service bridge)
-    ├── auth_service.dart           # flutter_secure_storage cookies
-    ├── chart_service.dart          # Apple Music chart lookup + cache
-    ├── download_service.dart       # Offline downloads with progress
-    └── lyrics_service.dart         # LRC lyrics from lrclib.net
+│   ├── screens/                    # home, player, playlist, search, settings, about, …
+│   ├── providers/                  # player, playlist, download, settings, chart
+│   └── widgets/                    # player_bar, video_tile, playlist_card, track_action_sheet, brand_logo, …
+└── service/                        # audio_handler, auth_service, chart_service, download_service, lyrics_service
 ```
 
-Android build identity: `com.ytmusix.ytmusix.canary` (YTMusix Canary). Source icon in [`tool/icon.png`](tool/icon.png) is fed to `flutter_launcher_icons` and `flutter_native_splash` to regenerate all `mipmap-*` launcher icons and `drawable-*` splash screens.
+Android build identity: **`com.ytmusix.ytmusix.canary`** (YTMusix Canary). The source icon
+[`tool/icon.png`](tool/icon.png) is fed to `flutter_launcher_icons` and `flutter_native_splash` to
+regenerate all `mipmap-*` launcher icons and `drawable-*` splash screens.
 
-## Testing
+## 🧪 Testing
 
 ```bash
 flutter test
 ```
 
-26 tests across 4 files, all passing:
+`flutter analyze` is clean. Tests cover `chart_service`, `player_provider`, `playlist_provider`, and the
+YouTube link parser.
 
-- `test/service/chart_service_test.dart` — Apple Ghana songs/albums caching, scoped Top 100 lookup, hot album playback
-- `test/presentation/providers/player_provider_test.dart` — queue init, shuffle, repeat, remove/reorder, sleep timer
-- `test/presentation/providers/playlist_provider_test.dart` — silent search cache deduplication
-- `test/presentation/providers/playlist_ranking_test.dart` — `rankHomeFeedTracks` boosts official tracks, penalises DJ mixes, applies stable tie-breakers
-- `test/core/utils/youtube_link_parser_test.dart` — watch, shorts, youtu.be, live, playlist, channel, nocookie fallback, unknown
+## ⚠️ Known Issues
 
-`flutter analyze` is clean (no warnings, no errors).
+- **Pub cache patch** — overwritten on `flutter pub upgrade`; re-apply manually.
+- **Android Kotlin Gradle Plugin notice** — a future-warning, not a current build blocker.
+- **Samsung GPU `BufferQueue` timeout** — harmless Adreno driver spam on Exynos devices; no impact on playback.
 
-## Known Issues
+## 🗺 Roadmap
 
-### App
-- **Pub cache patch** — overwritten when `flutter pub upgrade` runs; must be re-applied manually.
-- **Android Kotlin Gradle Plugin notice** — Flutter currently warns that app/plugin Kotlin Gradle Plugin usage should migrate to Built-in Kotlin for future Flutter versions. This is a future-warning, not a current build blocker.
-- **Samsung GPU `BufferQueue` timeout** — harmless Adreno driver spam in logcat on Exynos devices; does not affect playback.
+See [`futureroadmap.txt`](futureroadmap.txt) for planned features.
 
-## Design Docs
-
-- [`autoplay-explained-simple.md`](autoplay-explained-simple.md) — autoplay behavior spec designed by [BENJAMINDARKO](https://github.com/BENJAMINDARKO)
-
-## Roadmap
-
-See [`futureroadmap.txt`](futureroadmap.txt) for planned features sourced from MusicPiped, koel/player, Flow, sweyer, you-free-app, and monochrome-music/monochrome.
-
-## License
+## 📄 License
 
 Personal / educational use.

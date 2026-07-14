@@ -130,13 +130,13 @@ class _TrackActionSheet extends StatelessWidget {
             _TrackAction(
               icon: Icons.download_rounded,
               title: 'Download',
-              subtitle: 'Cache for offline playback',
+              subtitle: 'Download offline',
               onTap: () => _download(context),
             ),
           if (isDownloaded)
             const _TrackAction(
               icon: Icons.offline_pin_rounded,
-              title: 'Downloaded',
+              title: 'Offline',
               subtitle: 'Available offline',
             ),
           if (isDownloading)

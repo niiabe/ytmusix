@@ -10,7 +10,7 @@ class SettingsProvider extends ChangeNotifier {
   static const defaultPrebufferCount = 2;
 
   int _prebufferCount = defaultPrebufferCount;
-  AudioQuality _audioQuality = AudioQuality.low;
+  AudioQuality _audioQuality = AudioQuality.high;
   bool _crossfadeEnabled = false;
 
   int get prebufferCount => _prebufferCount;

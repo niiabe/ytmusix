@@ -65,7 +65,9 @@ Future<void> main() async {
     final downloadProvider = DownloadProvider(downloadService);
     await downloadProvider.init();
 
-    final chartProvider = ChartProvider(ChartService());
+    final chartProvider = ChartProvider(ChartService(
+      remoteDataSource: remoteDataSource,
+    ));
 
     runApp(YTMusixApp(
       playlistRepository: playlistRepository,

@@ -118,8 +118,12 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
-      'Unreleased',
-      'Category tabs (New, Trend, Podcasts, Favourites) are now exclusive — user-added playlists, "Added links", and recently played tracks no longer leak into the feed when a category tab is active. The Browse header gains a right-aligned "Downloaded" pill (green down-arrow icon) that opens a bottom sheet of cached tracks. Rebranded to YTMusix Canary (Android-only). App name, MaterialApp title, notification channel, export header, and README now read YTMusix Canary. New in-app BrandLogo (the bird/mascot from tool/icon.png) is shown in the AppBar, the empty state, and the About screen. YouTube live links are now recognized. Search now returns results via the youtube_explode fallback when the YT Music API is unavailable. Home screen adds Apple Music Ghana Hot 100 and Hot Albums shelves. Smart autoplay keeps playback going after the queue ends. Auto-hide controls fade the transport row, lyrics, and quick actions after 3 s of inactivity; tap to toggle. Copy YouTube link action lets the user open the video in a browser while audio plays in-app. All tests pass and flutter analyze is clean.',
+      '1.5.0',
+      'Auto-download every track you play for offline listening (live streams are skipped). Playlists now auto-download in full when played. The "Downloaded" section is renamed to "Offline" and the download action now reads "Download offline". Added an audio/video switch on the player so you can watch the music video, plus an in-player audio quality selector and a quality badge (default quality raised to High). Added a "YouTube Music Top 100 Ghana" chart shelf. In-app changelog now shows only the 3 most recent updates.',
+    ),
+    (
+      '1.4.3',
+      'Added a YouTube link parser with switch-based URL type detection for videos, playlists, shorts, and music links. Single video and shorts links now play audio immediately instead of opening a playlist view. Added channel link detection with clear unsupported feedback. Fixed DatabaseException on fresh installs by bumping the DB to version 8 with an idempotent migration.',
     ),
     (
       '1.4.3',
@@ -178,12 +182,12 @@ class _ChangelogSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          ..._items.indexed.map((entry) {
+          ..._items.take(3).toList().indexed.map((entry) {
             final index = entry.$1;
             final item = entry.$2;
             return Padding(
               padding: EdgeInsets.only(
-                bottom: index == _items.length - 1 ? 0 : 14,
+                bottom: index == _items.take(3).length - 1 ? 0 : 14,
               ),
               child: _ChangelogItem(version: item.$1, body: item.$2),
             );
