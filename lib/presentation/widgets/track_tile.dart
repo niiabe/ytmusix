@@ -10,6 +10,7 @@ class TrackTile extends StatelessWidget {
   final VoidCallback? onMore;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final Widget? fallback;
 
   const TrackTile({
     super.key,
@@ -21,11 +22,20 @@ class TrackTile extends StatelessWidget {
     this.onMore,
     this.onTap,
     this.onDelete,
+    this.fallback,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final placeholder = fallback ??
+        Container(
+          color: const Color(0xFF252525),
+          child: const Icon(
+            Icons.music_note_rounded,
+            color: Colors.white38,
+          ),
+        );
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       leading: ClipRRect(
@@ -34,23 +44,11 @@ class TrackTile extends StatelessWidget {
           width: 50,
           height: 50,
           child: track.thumbnailUrl == null
-              ? Container(
-                  color: const Color(0xFF252525),
-                  child: const Icon(
-                    Icons.music_note_rounded,
-                    color: Colors.white38,
-                  ),
-                )
+              ? placeholder
               : Image.network(
                   track.thumbnailUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    color: const Color(0xFF252525),
-                    child: const Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white38,
-                    ),
-                  ),
+                  errorBuilder: (_, _, _) => placeholder,
                 ),
         ),
       ),

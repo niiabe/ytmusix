@@ -13,6 +13,7 @@ import '../providers/chart_provider.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/now_playing_fab.dart';
 import '../widgets/track_action_sheet.dart';
+import '../widgets/update_dialog.dart';
 import 'playlist_screen.dart';
 import 'album_screen.dart';
 import 'player_screen.dart';
@@ -51,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<PlaylistProvider>().loadFavoriteCollections();
       context.read<ChartProvider>().loadCharts();
       context.read<PlayerProvider>().loadRecentlyPlayed();
+      checkAndShowUpdateDialog(context);
     });
   }
 
@@ -520,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 feedTracks,
                 playerProvider,
                 _homeTab == 4 ? provider.favoriteIds : null,
-                exclusiveFeed: true,
+                exclusiveFeed: _activeFeedKey != null,
               ),
             ],
           ),

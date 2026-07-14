@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/app_constants.dart';
+import '../../service/update_service.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/update_dialog.dart';
 import 'licenses_screen.dart';
 import 'contributors_screen.dart';
 
@@ -103,6 +105,8 @@ class AboutScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
+                const _UpdateChecker(),
+                const SizedBox(height: 18),
                 const _ChangelogSection(),
               ],
             );
@@ -113,10 +117,149 @@ class AboutScreen extends StatelessWidget {
   }
 }
 
+class _UpdateChecker extends StatefulWidget {
+  const _UpdateChecker();
+
+  @override
+  State<_UpdateChecker> createState() => _UpdateCheckerState();
+}
+
+class _UpdateCheckerState extends State<_UpdateChecker> {
+  UpdateInfo? _info;
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    if (!mounted) return;
+    setState(() => _checking = true);
+    final info = await UpdateService.checkForUpdate();
+    if (mounted) {
+      setState(() {
+        _info = info;
+        _checking = false;
+      });
+    }
+  }
+
+  Future<void> _download() async {
+    final info = _info;
+    if (info != null) {
+      await downloadAndInstallUpdate(context, info);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _info;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171717),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withAlpha(14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.system_update_alt_rounded, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'App update',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (_checking)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  tooltip: 'Check for updates',
+                  onPressed: _check,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_checking)
+            const Text(
+              'Checking GitHub for updates…',
+              style: TextStyle(color: Colors.white54),
+            )
+          else if (info != null && info.available)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1DB954),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'v${info.latestVersion}',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'A newer version is available '
+                        '(you have ${info.currentVersion}).',
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _download,
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text('Download update'),
+                  ),
+                ),
+              ],
+            )
+          else
+            const Text(
+              'You are on the latest version.',
+              style: TextStyle(color: Colors.white54),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChangelogSection extends StatelessWidget {
   const _ChangelogSection();
 
   static const _items = [
+    (
+      '1.5.2',
+      'In-app updates: the About screen now checks GitHub for a newer release and can download the APK and launch the system installer directly; a startup prompt offers the same when a new version is available. Offline screen now uses the app icon as artwork for tracks without a thumbnail. The home "Recent plays" section now populates from your recently played tracks. In-app changelog shows up to 5 entries.',
+    ),
     (
       '1.5.1',
       'Adopted the Offline (Downloads) screen and download method from ytmusix-flowos: a full-screen Offline view with a play/shuffle header, favourites, per-track delete and clear-all. Adopted flowos\' Settings page with a new Auto DJ screen — choose how the queue continues when it ends (Off, Library Shuffle, Similar Songs, Same Artist, Same Genre, Smart Mix) with a configurable continuation count and top-up threshold; it is now wired into playback so the queue extends automatically. Fixed a bug where the device back gesture at the root stopped playback — the app now moves to the background instead, keeping audio alive.',
@@ -124,10 +267,6 @@ class _ChangelogSection extends StatelessWidget {
     (
       '1.5.0',
       'Auto-download every track you play for offline listening (live streams are skipped). Playlists now auto-download in full when played. The "Downloaded" section is renamed to "Offline" and the download action now reads "Download offline". Added an audio/video switch on the player so you can watch the music video, plus an in-player audio quality selector and a quality badge (default quality raised to High). Added a "YouTube Music Top 100 Ghana" chart shelf. In-app changelog now shows only the 3 most recent updates.',
-    ),
-    (
-      '1.4.3',
-      'Added a YouTube link parser with switch-based URL type detection for videos, playlists, shorts, and music links. Single video and shorts links now play audio immediately instead of opening a playlist view. Added channel link detection with clear unsupported feedback. Fixed DatabaseException on fresh installs by bumping the DB to version 8 with an idempotent migration.',
     ),
     (
       '1.4.3',
@@ -186,12 +325,12 @@ class _ChangelogSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          ..._items.take(3).toList().indexed.map((entry) {
+          ..._items.take(5).toList().indexed.map((entry) {
             final index = entry.$1;
             final item = entry.$2;
             return Padding(
               padding: EdgeInsets.only(
-                bottom: index == _items.take(3).length - 1 ? 0 : 14,
+                bottom: index == _items.take(5).length - 1 ? 0 : 14,
               ),
               child: _ChangelogItem(version: item.$1, body: item.$2),
             );

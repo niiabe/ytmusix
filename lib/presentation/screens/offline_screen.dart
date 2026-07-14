@@ -183,6 +183,10 @@ class _OfflineScreenState extends State<OfflineScreen> {
                                   isDownloaded: true,
                                   isFavorite:
                                       favoriteIds.contains(track.id),
+                                  fallback: Image.asset(
+                                    'assets/brand/icon.png',
+                                    fit: BoxFit.cover,
+                                  ),
                                   onToggleFavorite: () =>
                                       playlistProvider.toggleFavorite(track),
                                   onDelete: () => _delete(track),

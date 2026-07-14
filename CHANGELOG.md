@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2
+
+- In-app updates: the About screen now checks GitHub for a newer release and can download the APK and launch the system installer directly (full in-app update; the APK is shared via a `FileProvider` and installed with `REQUEST_INSTALL_PACKAGES`). A startup prompt offers the same when a new version is available, remembered per version so it is not shown again once dismissed.
+- Offline screen: downloaded tracks without artwork now use the app icon (`assets/brand/icon.png`) as their thumbnail instead of a generic music-note placeholder.
+- Home: the "Recent plays" section on the home tab now populates from your recently played tracks (it was previously left empty).
+- About: the in-app changelog now shows up to 5 recent entries (was 3).
+
 ## 1.5.0
 
 - Auto-download: every track you play is now saved in the background for offline listening, at the same audio quality you are playing it. Live streams are detected (`Track.isLive`) and never auto-downloaded.
