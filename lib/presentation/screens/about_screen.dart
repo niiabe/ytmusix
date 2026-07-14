@@ -257,6 +257,10 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      '1.5.3',
+      'Fix: downloaded songs no longer fail with a "source error" — playback now loads the locally downloaded file directly. Fix: the Now Playing screen now fits small screens without overflowing. Theme: adopted the flowos color scheme with a pure-black background. Home redesign: decluttered Browse into Apple Music Top 100, YouTube Ghana Top 100, Suggested for you, Recent plays, and Your Library, with tabs New, Trending, Podcast, Favorites.',
+    ),
+    (
       '1.5.2',
       'In-app updates: the About screen now checks GitHub for a newer release and can download the APK and launch the system installer directly; a startup prompt offers the same when a new version is available. Offline screen now uses the app icon as artwork for tracks without a thumbnail. The home "Recent plays" section now populates from your recently played tracks. In-app changelog shows up to 5 entries.',
     ),

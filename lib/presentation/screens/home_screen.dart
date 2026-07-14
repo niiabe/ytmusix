@@ -12,8 +12,6 @@ import '../providers/settings_provider.dart';
 import '../providers/chart_provider.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/now_playing_fab.dart';
-import '../widgets/track_action_sheet.dart';
-import '../widgets/update_dialog.dart';
 import 'playlist_screen.dart';
 import 'album_screen.dart';
 import 'player_screen.dart';
@@ -29,19 +27,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _tabs = ['Added', 'New', 'Trend', 'Podcasts', 'Favourites'];
+  static const _tabs = ['New', 'Trending', 'Podcast', 'Favorites'];
   int _homeTab = 0;
-  bool _chartsVisible = true;
 
   String? get _activeFeedKey {
-    if (_homeTab == 1) return 'new';
-    if (_homeTab == 2) return 'trend';
-    if (_homeTab == 3) return 'podcasts';
+    if (_homeTab == 0) return 'new';
+    if (_homeTab == 1) return 'trend';
+    if (_homeTab == 2) return 'podcasts';
     return null;
   }
 
-  bool get _isFavoritesTab => _homeTab == 4;
-  bool get _isPlaylistTab => _homeTab == 0;
+  bool get _isFavoritesTab => _homeTab == 3;
 
   @override
   void initState() {
@@ -52,15 +48,12 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<PlaylistProvider>().loadFavoriteCollections();
       context.read<ChartProvider>().loadCharts();
       context.read<PlayerProvider>().loadRecentlyPlayed();
-      checkAndShowUpdateDialog(context);
+      context.read<PlaylistProvider>().loadHomeFeed('new');
     });
   }
 
   void _selectHomeTab(int index) {
-    setState(() {
-      _homeTab = index;
-      _chartsVisible = false;
-    });
+    setState(() => _homeTab = index);
     final key = _activeFeedKey;
     if (key != null) {
       context.read<PlaylistProvider>().loadHomeFeed(key);
@@ -397,6 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : provider.homeFeed(feedKey);
         final isFeedLoading =
             feedKey != null && provider.isHomeFeedLoading(feedKey);
+        final suggestedTracks = provider.homeFeed('new');
 
         if (provider.isLoading && feedKey == null) {
           return const Center(child: CircularProgressIndicator());
@@ -442,15 +436,11 @@ class _HomeScreenState extends State<HomeScreen> {
               provider.loadSavedPlaylists(),
               provider.loadFavoriteCollections(),
               chartProvider.loadCharts(force: true),
+              provider.loadHomeFeed('new', force: true),
             ]);
           },
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              146,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 146),
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -472,15 +462,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 18),
               _buildCategoryTabs(),
               const SizedBox(height: 22),
-              if (_chartsVisible)
-                _buildAppleMusicSection(context, chartProvider, playerProvider),
-              if (_chartsVisible) const SizedBox(height: 22),
-              if (_chartsVisible)
-                _buildYouTubeMusicSection(context, chartProvider, playerProvider),
-              if (_chartsVisible) const SizedBox(height: 22),
-              if (_isPlaylistTab)
-                _buildPlaylistSection(context, provider, playerProvider),
-              if (_isPlaylistTab) const SizedBox(height: 22),
+              _buildAppleMusicSection(context, chartProvider, playerProvider),
+              const SizedBox(height: 22),
+              _buildYouTubeMusicSection(context, chartProvider, playerProvider),
+              const SizedBox(height: 22),
               if (feedKey != null)
                 _buildTrackShelf(
                   context,
@@ -495,39 +480,84 @@ class _HomeScreenState extends State<HomeScreen> {
                   provider.favoriteCollections,
                   playerProvider,
                   downloadProvider,
-                )
-              else if (_isPlaylistTab)
-                _buildPlaylistShelf(
-                  context,
-                  _filteredPlaylists(provider),
-                  playerProvider,
-                  downloadProvider,
-                )
-              else
-                const SizedBox.shrink(),
-              const SizedBox(height: 28),
-              if (_homeTab != 0)
-                _buildTopHits(
-                  context,
-                  const [],
-                  _isFavoritesTab ? provider.favoriteTracks : feedTracks,
-                  playerProvider,
-                  _isFavoritesTab ? provider.favoriteIds : null,
-                  exclusiveFeed: true,
                 ),
-              const SizedBox(height: 28),
-              _buildTopHits(
+              const SizedBox(height: 22),
+              _buildSuggestedSection(context, suggestedTracks, playerProvider),
+              const SizedBox(height: 22),
+              _buildRecentTrackShelf(
                 context,
-                const [],
-                feedTracks,
+                playerProvider.recentlyPlayed,
                 playerProvider,
-                _homeTab == 4 ? provider.favoriteIds : null,
-                exclusiveFeed: _activeFeedKey != null,
+              ),
+              const SizedBox(height: 22),
+              _buildLibrarySection(
+                context,
+                provider,
+                playerProvider,
+                downloadProvider,
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSuggestedSection(
+    BuildContext context,
+    List<Track> tracks,
+    PlayerProvider playerProvider,
+  ) {
+    final limited = tracks.take(12).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Suggested for you',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Picked from the latest YouTube trends',
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        limited.isEmpty
+            ? const _EmptyShelf(tabLabel: 'suggested')
+            : _buildRecentTrackShelf(context, limited, playerProvider),
+      ],
+    );
+  }
+
+  Widget _buildLibrarySection(
+    BuildContext context,
+    PlaylistProvider provider,
+    PlayerProvider playerProvider,
+    DownloadProvider downloadProvider,
+  ) {
+    final playlists = _filteredPlaylists(provider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Your Library',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 14),
+        playlists.isEmpty
+            ? const _EmptyShelf(tabLabel: 'library')
+            : _buildPlaylistShelf(
+                context,
+                playlists,
+                playerProvider,
+                downloadProvider,
+              ),
+      ],
     );
   }
 
@@ -694,62 +724,6 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text('Playing "${tracks.first.title}"'),
         duration: const Duration(seconds: 2),
       ),
-    );
-  }
-
-  Widget _buildPlaylistSection(
-    BuildContext context,
-    PlaylistProvider provider,
-    PlayerProvider playerProvider,
-  ) {
-    final addedPlaylists = _filteredPlaylists(provider);
-    final recentTracks = playerProvider.recentlyPlayed;
-    if (addedPlaylists.isEmpty && recentTracks.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Playlist',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Your added links and recently played tracks',
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-          ),
-        ),
-        const SizedBox(height: 14),
-        if (addedPlaylists.isNotEmpty) ...[
-          const _PlaylistSectionHeader(
-            icon: Icons.link_rounded,
-            title: 'Added links',
-            subtitle: 'Playlists and albums you imported',
-          ),
-          const SizedBox(height: 12),
-          _buildPlaylistShelf(
-            context,
-            addedPlaylists,
-            playerProvider,
-            context.read<DownloadProvider>(),
-          ),
-          const SizedBox(height: 22),
-        ],
-        if (recentTracks.isNotEmpty) ...[
-          const _PlaylistSectionHeader(
-            icon: Icons.history_rounded,
-            title: 'Recent tracks',
-            subtitle: 'Songs you have searched for or played',
-          ),
-          const SizedBox(height: 12),
-          _buildRecentTrackShelf(context, recentTracks, playerProvider),
-        ],
-      ],
     );
   }
 
@@ -1011,112 +985,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-    );
-  }
-
-  Widget _buildTopHits(
-    BuildContext context,
-    List<Playlist> playlists,
-    List<Track> feedTracks,
-    PlayerProvider playerProvider,
-    Set<String>? favoriteIds, {
-    bool exclusiveFeed = false,
-  }) {
-    final tracks = <String, Track>{};
-    if (feedTracks.isNotEmpty) {
-      for (final track in feedTracks) {
-        tracks[track.id] = track;
-      }
-    } else if (!exclusiveFeed) {
-      for (final track in playerProvider.recentlyPlayed) {
-        if (favoriteIds == null || favoriteIds.contains(track.id)) {
-          tracks[track.id] = track;
-        }
-      }
-      for (final playlist in playlists) {
-        for (final track in playlist.tracks) {
-          if (favoriteIds == null || favoriteIds.contains(track.id)) {
-            tracks[track.id] = track;
-          }
-        }
-      }
-    }
-    final topTracks = tracks.values.take(6).toList();
-    final title = switch (_homeTab) {
-      1 => 'New from YouTube',
-      2 => 'Trending on YouTube',
-      3 => 'Ghana podcasts',
-      4 => 'Favourite tracks',
-      _ => 'Recent plays',
-    };
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 14),
-        if (topTracks.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF171717),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withAlpha(14)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.music_note_rounded, color: Colors.white54),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _homeTab == 4
-                        ? 'Star tracks to fill your favourites chart.'
-                        : _activeFeedKey != null
-                        ? 'Pull to refresh YouTube results.'
-                        : 'Open a playlist or play a track to fill your chart.',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          ...topTracks.indexed.map((item) {
-            final index = item.$1;
-            final track = item.$2;
-            return _TopHitTile(
-              rank: index + 1,
-              track: track,
-              onMore: () => showTrackActionSheet(
-                context,
-                track: track,
-                queue: topTracks,
-                index: index,
-                playlistId: _activeFeedKey == null
-                    ? null
-                    : '__feed_${_activeFeedKey!}',
-              ),
-              onTap: () {
-                final settings = context.read<SettingsProvider>();
-                playerProvider.setQueue(
-                  topTracks,
-                  startIndex: index,
-                  playlistId: _activeFeedKey == null
-                      ? null
-                      : '__feed_${_activeFeedKey!}',
-                );
-                playerProvider.playTrack(track, quality: settings.audioQuality);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                );
-              },
-            );
-          }),
-      ],
     );
   }
 
@@ -1528,121 +1396,6 @@ class _MiniAction extends StatelessWidget {
         icon: Icon(icon, size: 18),
         onPressed: onPressed,
       ),
-    );
-  }
-}
-
-class _TopHitTile extends StatelessWidget {
-  final int rank;
-  final Track track;
-  final VoidCallback onTap;
-  final VoidCallback onMore;
-
-  const _TopHitTile({
-    required this.rank,
-    required this.track,
-    required this.onTap,
-    required this.onMore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      minVerticalPadding: 8,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(9),
-        child: SizedBox(
-          width: 54,
-          height: 54,
-          child: Image.network(
-            track.thumbnailUrl ?? '',
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              color: const Color(0xFF252525),
-              child: const Icon(
-                Icons.music_note_rounded,
-                color: Colors.white38,
-              ),
-            ),
-          ),
-        ),
-      ),
-      title: Text(
-        track.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-      ),
-      subtitle: Text(
-        '#$rank  ${track.author ?? ''}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Colors.white54, fontSize: 11),
-      ),
-      trailing: IconButton(
-        icon: const Icon(Icons.more_vert_rounded, color: Colors.white38),
-        onPressed: onMore,
-      ),
-      onTap: onTap,
-    );
-  }
-}
-
-class _PlaylistSectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _PlaylistSectionHeader({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withAlpha(30),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            size: 16,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

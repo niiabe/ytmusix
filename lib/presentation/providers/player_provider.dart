@@ -297,13 +297,26 @@ class PlayerProvider extends ChangeNotifier {
  
     try {
       _addToRecentlyPlayed(track);
-      // Check preload cache first — avoids the 2-5s URL resolution wait.
-      final cachedUrl = _urlCache.remove(track.id);
-      final audioUrl = cachedUrl ??
-          await _audioRepository.getAudioUrl(
-            track,
-            quality: quality.name,
-          );
+
+      // Prefer a downloaded local file — more reliable than a freshly
+      // resolved stream URL and required for true offline playback. The
+      // audio handler plays file paths directly via AudioSource.file.
+      String? audioUrl;
+      if (_downloadProvider != null && !track.isLive) {
+        final localPath = await _downloadProvider.getLocalFilePath(track.id);
+        if (localPath != null) audioUrl = localPath;
+      }
+
+      if (audioUrl == null) {
+        // Check preload cache first — avoids the 2-5s URL resolution wait.
+        final cachedUrl = _urlCache.remove(track.id);
+        audioUrl = cachedUrl ??
+            await _audioRepository.getAudioUrl(
+              track,
+              quality: quality.name,
+            );
+      }
+
       await _audioRepository.playTrack(track, audioUrl);
       _isPlaying = true;
       _startPolling();

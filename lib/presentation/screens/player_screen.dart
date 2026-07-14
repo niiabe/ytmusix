@@ -187,13 +187,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: _toggleControls,
-                    child: SafeArea(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                     child: SafeArea(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight - 40,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
                             AnimatedOpacity(
                               opacity: _controlsVisible ? 1 : 0,
                               duration: const Duration(milliseconds: 280),
@@ -460,8 +467,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           ],
                         ),
                       ),
+                    );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             );
