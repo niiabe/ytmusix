@@ -10,6 +10,14 @@
 - Added a **YouTube Music Top 100 Ghana** chart shelf on the home Browse screen (YouTube-search sourced), alongside the existing Apple Music Ghana shelves.
 - Changelog: the in-app About screen now shows only the 3 most recent updates.
 
+## 1.5.1
+
+- Adopted the Offline (Downloads) screen and download method from ytmusix-flowos: a full-screen Offline view with a play/shuffle header, favourites, per-track delete and clear-all. A reusable `TrackTile` widget was added to support it.
+- Adopted flowos' Settings page, including a new **Auto DJ** screen: choose how the queue continues when it ends (Off, Library Shuffle, Similar Songs, Same Artist, Same Genre, Smart Mix) with a configurable continuation count and top-up threshold. Auto DJ is now wired into playback (`PlayerProvider.next` / `playTrack`) so the queue extends automatically near the end (or at the end when not on repeat). Default mode is Off, so playback stops at the end of the queue by default — pick "Similar Songs" to restore continuous autoplay.
+- Fixed a bug where the device back gesture at the root stopped playback: the root route is now wrapped in `PopScope(canPop: false)` that sends the app to the background (`SystemNavigator.pop`) instead of finishing the activity, keeping the headless audio service alive.
+- Storage: "Clear all cached downloads" now removes every downloaded track (including individually downloaded tracks) via `DownloadProvider.deleteAllDownloadedTracks`, not just playlist-associated ones.
+- Static analysis: `flutter analyze` reports no issues.
+
 ## Unreleased
 
 - Home: category tabs (`New`, `Trend`, `Podcasts`, `Favourites`) now render content exclusive to that tab. The `Playlist` section (Added links + Recent tracks) and the user-playlist/recently-played fallback in the top-hits chart are hidden on category tabs, so no cross-contamination of datasets.

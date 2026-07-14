@@ -13,12 +13,12 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white" />
   <img alt="Built with" src="https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-Personal%20%2F%20Educational-lightgrey" />
-  <img alt="Version" src="https://img.shields.io/badge/version-1.5.0%2B9-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.5.1%2B10-blue" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/niiabe/ytmusix/releases/download/v1.5.0/YTMusix-Canary-v1.5.0.apk">
-    <img alt="Download APK" src="https://img.shields.io/badge/Download-APK%20v1.5.0-3DDC84?logo=android&logoColor=white" />
+  <a href="https://github.com/niiabe/ytmusix/releases/download/v1.5.1/YTMusix-Canary-v1.5.1.apk">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download-APK%20v1.5.1-3DDC84?logo=android&logoColor=white" />
   </a>
 </p>
 
@@ -32,7 +32,7 @@ design: tracks you play are cached to your device, and play straight from local 
 
 Get the latest canary build (debug-signed, sideload-only):
 
-- **APK (v1.5.0):** [YTMusix-Canary-v1.5.0.apk](https://github.com/niiabe/ytmusix/releases/download/v1.5.0/YTMusix-Canary-v1.5.0.apk)
+- **APK (v1.5.1):** [YTMusix-Canary-v1.5.1.apk](https://github.com/niiabe/ytmusix/releases/download/v1.5.1/YTMusix-Canary-v1.5.1.apk)
 
 > To install, enable **Install unknown apps** for your file manager / browser, then open the APK.
 > Auto-updates are not included — grab a fresh build from the

@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../models/playlist_model.dart';
 import '../../models/video_model.dart';
+import '../../../domain/entities/video.dart';
 
 class PlaylistDatabase {
   static Database? _database;
@@ -364,6 +366,40 @@ class PlaylistDatabase {
     final db = await database;
     final result = await db.query('downloaded_tracks', columns: ['id']);
     return result.map((r) => r['id'] as String).toSet();
+  }
+
+  /// Returns every downloaded track as a [Track], newest first, pruning any
+  /// entries whose audio file is missing on disk.
+  Future<List<Track>> getAllDownloadedTracks() async {
+    final db = await database;
+    final results = await db.query(
+      'downloaded_tracks',
+      orderBy: 'downloadedAt DESC',
+    );
+    final tracks = <Track>[];
+    for (final map in results) {
+      final path = map['filePath'] as String?;
+      if (path == null) continue;
+      final resolved = await _resolveDynamicPath(path);
+      if (!File(resolved).existsSync()) {
+        await db.delete(
+          'downloaded_tracks',
+          where: 'id = ?',
+          whereArgs: [map['id']],
+        );
+        continue;
+      }
+      tracks.add(
+        Track(
+          id: map['id'] as String,
+          title: (map['title'] as String?) ?? '',
+          thumbnailUrl: map['thumbnailUrl'] as String?,
+          duration: Duration(seconds: (map['durationSeconds'] as int?) ?? 0),
+          author: map['author'] as String?,
+        ),
+      );
+    }
+    return tracks;
   }
 
   Future<Set<String>> getFullyDownloadedPlaylistIds() async {

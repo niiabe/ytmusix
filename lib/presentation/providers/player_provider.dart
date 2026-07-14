@@ -10,6 +10,8 @@ import '../../domain/repositories/audio_repository.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../service/audio_handler.dart';
 import 'download_provider.dart';
+import 'playlist_provider.dart';
+import 'settings_provider.dart';
 
 // ---------------------------------------------------------------------------
 // URL cache — maps trackId -> resolved stream URL so the next-track load
@@ -19,8 +21,15 @@ import 'download_provider.dart';
 class PlayerProvider extends ChangeNotifier {
   final AudioRepository _audioRepository;
   final DownloadProvider? _downloadProvider;
+  final PlaylistProvider? _playlistProvider;
+  final SettingsProvider? _settingsProvider;
 
-  PlayerProvider(this._audioRepository, {this._downloadProvider}) {
+  PlayerProvider(
+    this._audioRepository, {
+    this._downloadProvider,
+    this._playlistProvider,
+    this._settingsProvider,
+  }) {
     _skipNextSubscription = _audioRepository.onSkipNextRequested.listen((_) {
       next();
     });
@@ -74,6 +83,7 @@ class PlayerProvider extends ChangeNotifier {
   /// Preloaded stream URL cache. Key = track.id, value = resolved URL.
   final Map<String, String> _urlCache = {};
   bool _isPrebuffering = false;
+  bool _isToppingUp = false;
 
   final List<VoidCallback> _trackChangedListeners = [];
 
@@ -313,6 +323,9 @@ class PlayerProvider extends ChangeNotifier {
           ),
         );
       }
+      // Proactively extend the queue when Auto DJ is enabled and we are
+      // near the end, so playback continues without a gap.
+      unawaited(_appendAutoDjTracks());
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -402,11 +415,23 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> next() async {
     if (_currentIndex + 1 < _queue.length) {
       await playFromQueue(_currentIndex + 1);
-    } else if (_repeatMode == repeat.PlaybackRepeatMode.all &&
-        _queue.isNotEmpty) {
+      return;
+    }
+    if (_repeatMode == repeat.PlaybackRepeatMode.all && _queue.isNotEmpty) {
       await playFromQueue(0);
-    } else if (_currentTrack != null) {
-      await _fetchAutoplayRecommendations();
+      return;
+    }
+    // End of queue reached — let Auto DJ continue (or stop if disabled).
+    final mode = _settingsProvider?.autoDjMode ?? 'off';
+    if (mode == 'off') {
+      await stop();
+      return;
+    }
+    await _appendAutoDjTracks(force: true);
+    if (_currentIndex + 1 < _queue.length) {
+      await playFromQueue(_currentIndex + 1);
+    } else {
+      await stop();
     }
   }
 
@@ -483,35 +508,109 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _fetchAutoplayRecommendations() async {
-    if (_currentTrack == null) {
-      await stop();
-      return;
+  /// Extends the queue with Auto DJ tracks based on the configured mode.
+  ///
+  /// When [force] is false (proactive top-up during playback) it only appends
+  /// once the number of remaining tracks drops to [SettingsProvider.autoDjThreshold]
+  /// or fewer. When [force] is true (reached the end of the queue) it always
+  /// attempts to append. No-op when Auto DJ mode is 'off'.
+  Future<void> _appendAutoDjTracks({bool force = false}) async {
+    final mode = _settingsProvider?.autoDjMode ?? 'off';
+    if (mode == 'off') return;
+    if (!force) {
+      final threshold = _settingsProvider?.autoDjThreshold ?? 0;
+      final remaining = _queue.length - _currentIndex - 1;
+      if (remaining > threshold) return;
     }
-    _isLoading = true;
-    notifyListeners();
+    if (_isToppingUp) return;
+    _isToppingUp = true;
     try {
-      final recommendations = await _audioRepository.getRecommendations(
-        _currentTrack!,
-        limit: 15,
-      );
-      final existing = _queue.map((t) => t.id).toSet();
-      final fresh = recommendations
-          .where((t) => !existing.contains(t.id))
-          .toList();
-      if (fresh.isEmpty) {
-        await stop();
-        return;
-      }
+      final count = _settingsProvider?.autoDjSongsCount ?? 5;
+      final fresh = await _buildAutoDjTracks(count);
+      if (fresh.isEmpty) return;
       _queue.addAll(fresh);
       _syncQueueToHandler();
-      await playFromQueue(_currentIndex + 1);
-    } catch (e) {
-      _error = e.toString();
-      await stop();
-    } finally {
-      _isLoading = false;
       notifyListeners();
+    } finally {
+      _isToppingUp = false;
+    }
+  }
+
+  Future<List<Track>> _buildAutoDjTracks(int count) async {
+    final mode = _settingsProvider?.autoDjMode ?? 'off';
+    List<Track> result = [];
+    try {
+      switch (mode) {
+        case 'shuffleLibrary':
+          result = await _shuffleLibraryPool();
+          break;
+        case 'similarSongs':
+          if (_currentTrack != null) {
+            result = await _audioRepository.getRecommendations(
+              _currentTrack!,
+              limit: count,
+            );
+          }
+          break;
+        case 'sameArtist':
+          result = await _searchArtistTracks(count);
+          break;
+        case 'sameGenre':
+          if (_currentTrack != null) {
+            result = await _audioRepository.getRelatedVideos(_currentTrack!);
+          }
+          break;
+        case 'smartMix':
+          final library = await _shuffleLibraryPool();
+          final recommendations = _currentTrack != null
+              ? await _audioRepository.getRecommendations(
+                  _currentTrack!,
+                  limit: count,
+                )
+              : <Track>[];
+          result = [...library, ...recommendations];
+          break;
+        default:
+          return [];
+      }
+    } catch (_) {
+      result = [];
+    }
+    final existing = _queue.map((t) => t.id).toSet();
+    final currentId = _currentTrack?.id;
+    result = result
+        .where((t) => !existing.contains(t.id) && t.id != currentId)
+        .toList();
+    result.shuffle(Random());
+    return result.take(count).toList();
+  }
+
+  Future<List<Track>> _shuffleLibraryPool() async {
+    final pool = <Track>[];
+    final playlistProvider = _playlistProvider;
+    if (playlistProvider != null) {
+      pool.addAll(playlistProvider.favoriteTracks);
+      for (final playlist in playlistProvider.playlists) {
+        pool.addAll(playlist.tracks);
+      }
+    }
+    if (_downloadProvider != null) {
+      try {
+        pool.addAll(await _downloadProvider.getAllDownloadedTracks());
+      } catch (_) {}
+    }
+    pool.shuffle(Random());
+    return pool;
+  }
+
+  Future<List<Track>> _searchArtistTracks(int count) async {
+    final playlistProvider = _playlistProvider;
+    final author = _currentTrack?.author;
+    if (playlistProvider == null || author == null) return [];
+    try {
+      return await playlistProvider.search(author);
+    } catch (_) {
+      return [];
     }
   }
 

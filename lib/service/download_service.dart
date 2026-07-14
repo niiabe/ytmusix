@@ -29,6 +29,11 @@ class DownloadProgress {
   double get fraction => totalBytes > 0 ? currentBytes / totalBytes : 0.0;
 }
 
+/// Thrown when a download is aborted via [DownloadService.cancelDownload].
+class DownloadCancelledException implements Exception {
+  const DownloadCancelledException();
+}
+
 class DownloadService {
   late final YoutubeRemoteDataSource _remoteDataSource;
   late final PlaylistDatabase _database;
@@ -69,6 +74,7 @@ class DownloadService {
     String playlistId, {
     String quality = 'medium',
   }) async {
+    _cancelled = false;
     if (track.isLive) return;
     if (await isTrackDownloaded(track.id)) return;
     final dir = await _getDownloadDir(playlistId);
@@ -91,6 +97,8 @@ class DownloadService {
         author: track.author,
       );
       _completedController.add(track.id);
+    } on DownloadCancelledException {
+      return;
     } catch (e) {
       _errorController.add('Failed to download ${track.title}: $e');
       _progressController.add(
@@ -146,6 +154,8 @@ class DownloadService {
           author: track.author,
         );
         _completedController.add(track.id);
+      } on DownloadCancelledException {
+        break;
       } catch (e) {
         _errorController.add('Failed to download ${track.title}: $e');
         _progressController.add(
@@ -190,7 +200,7 @@ class DownloadService {
       if (_cancelled) {
         await sink.close();
         if (tempFile.existsSync()) await tempFile.delete();
-        return;
+        throw const DownloadCancelledException();
       }
       sink.add(chunk);
       received += chunk.length;
@@ -243,6 +253,30 @@ class DownloadService {
       }
     }
     return existing;
+  }
+
+  Future<List<Track>> getAllDownloadedTracks() async {
+    return _database.getAllDownloadedTracks();
+  }
+
+  Future<void> deleteDownloadedTrack(String trackId) async {
+    final path = await _database.getDownloadedFilePath(trackId);
+    if (path != null) {
+      final file = File(path);
+      if (file.existsSync()) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    }
+    await _database.removeDownloadedTrack(trackId);
+  }
+
+  Future<void> deleteAllDownloadedTracks() async {
+    final tracks = await getAllDownloadedTracks();
+    for (final t in tracks) {
+      await deleteDownloadedTrack(t.id);
+    }
   }
 
   Future<Set<String>> getFullyDownloadedPlaylistIds() async {

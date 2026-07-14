@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/audio_repository.dart';
@@ -31,16 +32,17 @@ class YTMusixApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final playlistProvider = PlaylistProvider(playlistRepository);
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: settingsProvider),
-        ChangeNotifierProvider(
-          create: (_) => PlaylistProvider(playlistRepository),
-        ),
+        ChangeNotifierProvider.value(value: playlistProvider),
         ChangeNotifierProvider(
           create: (_) => PlayerProvider(
             audioRepository,
             downloadProvider: downloadProvider,
+            playlistProvider: playlistProvider,
+            settingsProvider: settingsProvider,
           )..setAudioHandler(audioHandler),
         ),
         ChangeNotifierProvider.value(
@@ -54,7 +56,16 @@ class YTMusixApp extends StatelessWidget {
         title: 'YTMusix Canary',
         theme: AppTheme.darkTheme,
         debugShowCheckedModeBanner: false,
-        home: const HomeScreen(),
+        home: PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) {
+            // Keep background audio alive: at the root, send the app to the
+            // background instead of finishing the activity (which would stop
+            // the headless audio service via onTaskRemoved).
+            if (!didPop) SystemNavigator.pop();
+          },
+          child: const HomeScreen(),
+        ),
       ),
     );
   }

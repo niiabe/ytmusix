@@ -160,6 +160,23 @@ class DownloadProvider extends ChangeNotifier {
     return _downloadService.isTrackDownloaded(trackId);
   }
 
+  Future<List<Track>> getAllDownloadedTracks() =>
+      _downloadService.getAllDownloadedTracks();
+
+  Future<void> deleteDownloadedTrack(String trackId) async {
+    await _downloadService.deleteDownloadedTrack(trackId);
+    await _refreshDownloadedIds();
+    await _refreshDownloadedPlaylists();
+    notifyListeners();
+  }
+
+  Future<void> deleteAllDownloadedTracks() async {
+    await _downloadService.deleteAllDownloadedTracks();
+    await _refreshDownloadedIds();
+    await _refreshDownloadedPlaylists();
+    notifyListeners();
+  }
+
   Future<String?> getLocalFilePath(String trackId) async {
     return _downloadService.getLocalFilePath(trackId);
   }

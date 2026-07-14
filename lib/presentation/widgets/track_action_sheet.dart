@@ -140,10 +140,15 @@ class _TrackActionSheet extends StatelessWidget {
               subtitle: 'Available offline',
             ),
           if (isDownloading)
-            const _TrackAction(
-              icon: Icons.downloading_rounded,
-              title: 'Downloading',
-              subtitle: 'Already in progress',
+            _TrackAction(
+              icon: Icons.cancel_rounded,
+              title: 'Cancel download',
+              subtitle: 'Stop this download',
+              color: Colors.redAccent,
+              onTap: () {
+                downloadProvider.cancelDownload();
+                Navigator.pop(context);
+              },
             ),
           if (onRemove != null)
             _TrackAction(

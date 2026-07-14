@@ -590,20 +590,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
           icon: isDownloaded
               ? Icons.offline_pin_rounded
               : isDownloading
-              ? Icons.downloading_rounded
+              ? Icons.cancel_rounded
               : Icons.download_rounded,
           title: isDownloaded
               ? 'Offline'
               : isDownloading
-              ? 'Downloading'
+              ? 'Cancel download'
               : 'Download',
           subtitle: isDownloaded
               ? 'Available offline'
               : isDownloading
-              ? 'Already in progress'
+              ? 'Stop this download'
               : 'Download offline',
-          onTap: isDownloaded || isDownloading
+          onTap: isDownloaded
               ? null
+              : isDownloading
+              ? () {
+                  Navigator.pop(context);
+                  downloadProvider.cancelDownload();
+                }
               : () {
                   Navigator.pop(context);
                   downloadProvider.downloadTrack(

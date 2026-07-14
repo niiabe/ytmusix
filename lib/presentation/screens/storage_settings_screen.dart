@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/playlist_provider.dart';
 import '../providers/download_provider.dart';
 
 class StorageSettingsScreen extends StatefulWidget {
@@ -52,14 +51,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     );
     if (confirmed == true && context.mounted) {
       final provider = context.read<DownloadProvider>();
-      final allPlaylistIds = context
-          .read<PlaylistProvider>()
-          .playlists
-          .map((p) => p.id)
-          .toList();
-      for (final id in allPlaylistIds) {
-        await provider.deleteDownloadedPlaylist(id);
-      }
+      await provider.deleteAllDownloadedTracks();
       setState(() {});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

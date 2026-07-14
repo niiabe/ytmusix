@@ -118,6 +118,10 @@ class _ChangelogSection extends StatelessWidget {
 
   static const _items = [
     (
+      '1.5.1',
+      'Adopted the Offline (Downloads) screen and download method from ytmusix-flowos: a full-screen Offline view with a play/shuffle header, favourites, per-track delete and clear-all. Adopted flowos\' Settings page with a new Auto DJ screen — choose how the queue continues when it ends (Off, Library Shuffle, Similar Songs, Same Artist, Same Genre, Smart Mix) with a configurable continuation count and top-up threshold; it is now wired into playback so the queue extends automatically. Fixed a bug where the device back gesture at the root stopped playback — the app now moves to the background instead, keeping audio alive.',
+    ),
+    (
       '1.5.0',
       'Auto-download every track you play for offline listening (live streams are skipped). Playlists now auto-download in full when played. The "Downloaded" section is renamed to "Offline" and the download action now reads "Download offline". Added an audio/video switch on the player so you can watch the music video, plus an in-player audio quality selector and a quality badge (default quality raised to High). Added a "YouTube Music Top 100 Ghana" chart shelf. In-app changelog now shows only the 3 most recent updates.',
     ),
